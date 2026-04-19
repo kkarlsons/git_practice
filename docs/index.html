@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0e1a" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f4f6ff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#071C23">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Volts">
+  <meta name="apple-mobile-web-app-title" content="EngyCell">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://rsms.me/">
-  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <title>Volts · Latvia electricity</title>
+  <title>EngyCell Prices · Latvia electricity</title>
 </head>
 <body>
   <div class="bg">
@@ -27,11 +27,19 @@
   <header class="top">
     <div class="brand">
       <div class="logo-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 L3 14 h7 l-1 8 l11 -12 h-7 z"/></svg>
+        <!-- engycell-inspired mark: lightning bolt + turbine blade -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <!-- turbine / blade element (left) -->
+          <path d="M4.5 6.2 L11.2 2.2 L13.3 8.8 L6.6 12.8 Z" fill="#071C23"/>
+          <!-- bolt element (right, offset) -->
+          <path d="M14 6 L19 2.4 L18 11.4 L13 15 Z" fill="#071C23"/>
+          <!-- small accent triangle (tail) -->
+          <path d="M11.6 14 L15 15.8 L10.5 19.6 Z" fill="#071C23"/>
+        </svg>
       </div>
       <div class="brand-text">
-        <h1>Volts</h1>
-        <p class="subtitle">Latvia · 15-minute prices</p>
+        <h1><span class="brand-accent">engy</span>cell · Prices</h1>
+        <p class="subtitle">Latvia · 15-minute electricity</p>
       </div>
     </div>
     <button id="refresh" class="icon-btn" aria-label="Refresh">
@@ -61,7 +69,6 @@
     </div>
 
     <div id="content" class="hidden fade-in">
-      <!-- Hero -->
       <section class="hero">
         <div class="hero-top">
           <span class="pill" id="hero-pill">—</span>
@@ -78,16 +85,14 @@
         <svg id="hero-spark" class="hero-spark" viewBox="0 0 340 60" preserveAspectRatio="none" aria-hidden="true"></svg>
       </section>
 
-      <!-- Insight -->
       <section id="insight" class="insight hidden">
-        <div class="insight-icon" id="insight-icon">🌙</div>
+        <div class="insight-icon" id="insight-icon">🌿</div>
         <div class="insight-text">
           <div class="insight-title" id="insight-title"></div>
           <div class="insight-sub" id="insight-sub"></div>
         </div>
       </section>
 
-      <!-- Min/Max stat cards -->
       <section class="stats">
         <div class="stat lo">
           <div class="stat-head"><span class="stat-dot"></span> Cheapest</div>
@@ -101,7 +106,6 @@
         </div>
       </section>
 
-      <!-- Chart -->
       <section class="card chart-card">
         <div class="card-head">
           <h3>15-minute bars</h3>
@@ -113,7 +117,6 @@
         <svg id="chart" viewBox="0 0 640 280" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Price chart"></svg>
       </section>
 
-      <!-- List -->
       <section class="card list-card">
         <div class="card-head">
           <h3>Every 15-minute slot</h3>

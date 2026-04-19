@@ -1,6 +1,13 @@
-# Volts ⚡ — Latvia electricity prices
+# EngyCell Prices — Latvia electricity
 
-A small, nice-looking app that shows **15-minute Nord Pool electricity prices** for today and tomorrow in Latvia, with the **4 cheapest** and **4 most expensive** slots highlighted.
+A small, premium-feeling app in the **Engycell brand** that shows **15-minute Nord Pool electricity prices** for today and tomorrow in Latvia, with the **4 cheapest** and **4 most expensive** slots highlighted — plus a crown on the absolute cheapest and a flame on the absolute priciest 15-minute window of the day.
+
+Colors, type and mark follow the Engycell Brand Style Guide:
+- Deep teal `#071C23` surfaces
+- Vivid green `#98BD09` accents
+- Secondary teal `#03413C`
+- Off-white `#EEEEEE` type
+- Kumbh Sans (400 / 600 / 700)
 
 Two versions live in this repo:
 
@@ -29,7 +36,7 @@ Two versions live in this repo:
 3. Scroll down and tap **Add to Home Screen**.
 4. Tap **Add** (top right).
 
-Done — there's now a **Volts** icon on your home screen. Tap it and it opens full-screen, no browser bars, just like a native app. It will remember your pick between Today/Tomorrow and refresh every time you open it.
+Done — there's now a **EngyCell** icon on your home screen. Tap it and it opens full-screen, no browser bars, just like a native app. It will remember your pick between Today/Tomorrow and refresh every time you open it.
 
 ### If prices don't load
 The app tries the Nordpool CSV directly first, then falls back to three public CORS proxies. If all four fail, tap the refresh button. The error shown on screen will say which step failed.

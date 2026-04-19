@@ -374,21 +374,21 @@
     if (currentRow) {
       const i = rows.indexOf(currentRow);
       if (i >= 0) {
-        nowDot = `<circle cx="${x(i)}" cy="${y(currentRow.centsKWh)}" r="4" fill="white"/>
-                  <circle cx="${x(i)}" cy="${y(currentRow.centsKWh)}" r="3" fill="#4f46e5"/>`;
+        nowDot = `<circle cx="${x(i)}" cy="${y(currentRow.centsKWh)}" r="4" fill="#EEEEEE"/>
+                  <circle cx="${x(i)}" cy="${y(currentRow.centsKWh)}" r="2.4" fill="#98BD09"/>`;
       }
     }
 
     svg.innerHTML = `
       <defs>
         <linearGradient id="sparkG" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(124,58,237,0.55)"/>
-          <stop offset="100%" stop-color="rgba(124,58,237,0.02)"/>
+          <stop offset="0%"  stop-color="rgba(152, 189, 9, 0.55)"/>
+          <stop offset="100%" stop-color="rgba(152, 189, 9, 0.02)"/>
         </linearGradient>
         <linearGradient id="sparkL" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#4f46e5"/>
-          <stop offset="50%" stop-color="#7c3aed"/>
-          <stop offset="100%" stop-color="#06b6d4"/>
+          <stop offset="0%"  stop-color="#03413C"/>
+          <stop offset="55%" stop-color="#98BD09"/>
+          <stop offset="100%" stop-color="#B7D910"/>
         </linearGradient>
       </defs>
       <path d="${area}" fill="url(#sparkG)"/>
@@ -417,9 +417,9 @@
     const y = v => padT + chartH - ((Math.max(0, v) - yMin) / (yMax - yMin)) * chartH;
 
     const css = getComputedStyle(document.documentElement);
-    const muted = css.getPropertyValue('--muted').trim() || '#8893a7';
-    const text  = css.getPropertyValue('--text').trim()  || '#f1f5f9';
-    const acc1  = css.getPropertyValue('--accent-1').trim() || '#4f46e5';
+    const muted = css.getPropertyValue('--muted').trim() || 'rgba(238,238,238,0.58)';
+    const text  = css.getPropertyValue('--text').trim()  || '#EEEEEE';
+    const acc1  = css.getPropertyValue('--brand').trim() || '#98BD09';
 
     // Absolute min/max (for the "crown" and "siren" accents)
     let minIdx = 0, maxIdx = 0;
@@ -495,7 +495,7 @@
       bars += `<rect x="${bx.toFixed(2)}" y="${by.toFixed(2)}" width="${barW.toFixed(2)}" height="${bh.toFixed(2)}" rx="${rx}" fill="${fill}" ${extra}/>`;
     });
 
-    // Marker badges above cheapest/priciest (tiny pills)
+    // Marker badges above cheapest/priciest (tiny pills) — brand-coloured
     let badges = '';
     rows.forEach((r, i) => {
       const k = +r.start;
@@ -503,21 +503,19 @@
       const by = y(r.centsKWh);
       if (cheapest.has(k)) {
         const isCrown = i === minIdx;
-        const color = isCrown ? '#fcd34d' : '#34d399';
-        const glow = isCrown ? '#facc15' : '#34d399';
+        const color = isCrown ? '#B7D910' : '#98BD09';
         badges += `
           <g transform="translate(${bx.toFixed(2)}, ${(by - 10).toFixed(2)})">
-            <circle r="5" fill="${color}" style="filter: drop-shadow(0 0 6px ${glow})"/>
-            <circle r="2" fill="white" opacity="0.85"/>
+            <circle r="5" fill="${color}" style="filter: drop-shadow(0 0 6px ${color})"/>
+            <circle r="2" fill="#071C23" opacity="0.9"/>
           </g>`;
       } else if (priciest.has(k)) {
         const isSiren = i === maxIdx;
-        const color = isSiren ? '#fb923c' : '#f87171';
-        const glow = isSiren ? '#f97316' : '#f87171';
+        const color = isSiren ? '#FBBF24' : '#F59E0B';
         badges += `
           <g transform="translate(${bx.toFixed(2)}, ${(by - 10).toFixed(2)})">
-            <circle r="5" fill="${color}" style="filter: drop-shadow(0 0 6px ${glow})"/>
-            <circle r="2" fill="white" opacity="0.85"/>
+            <circle r="5" fill="${color}" style="filter: drop-shadow(0 0 6px ${color})"/>
+            <circle r="2" fill="#071C23" opacity="0.9"/>
           </g>`;
       }
     });
@@ -558,21 +556,22 @@
       }
     }
 
-    // Build gradient defs. Normal bars get precomputed hue stops.
+    // Build gradient defs. Normal bars: a teal-to-green ramp so the chart
+    // feels Engycell-brand: darker teal at low relative price, vivid green
+    // at the high end of the normal range.
     let normalDefs = '';
     for (let i = 0; i <= 100; i += 5) {
       const t = i / 100;
-      // HSL ramp: teal (190) → indigo (255) → magenta (310) → rose (355)
-      const hue = 190 + t * 165;
-      const sat = 68, bri = 62;
+      // Interpolate HSL from deep teal (#03413C ≈ 173° 91% 13%) to brand green (#98BD09 ≈ 73° 91% 39%)
+      const hue = 173 + (73 - 173) * t;
+      const sat = 72;
+      const bri = 22 + t * 28;
       normalDefs += `
         <linearGradient id="barNormal${i}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stop-color="hsl(${hue}, ${sat}%, ${bri}%)" stop-opacity="0.95"/>
-          <stop offset="100%" stop-color="hsl(${hue}, ${sat}%, ${bri-10}%)" stop-opacity="0.45"/>
+          <stop offset="0%"   stop-color="hsl(${hue.toFixed(1)}, ${sat}%, ${(bri+10).toFixed(1)}%)" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="hsl(${hue.toFixed(1)}, ${sat}%, ${bri.toFixed(1)}%)" stop-opacity="0.35"/>
         </linearGradient>`;
     }
-    // Round to nearest 5 for lookups (above loop emits 0, 5, …, 100; renderer uses Math.round(t*100) so fall back)
-    // Fill any remaining 1..99 that aren't multiples of 5 via fallback of nearest 5.
     for (let i = 0; i <= 100; i++) {
       if (i % 5 === 0) continue;
       const nearest = Math.round(i / 5) * 5;
@@ -582,12 +581,12 @@
     svg.innerHTML = `
       <defs>
         <linearGradient id="barCheap" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stop-color="#34d399" stop-opacity="1"/>
-          <stop offset="100%" stop-color="#10b981" stop-opacity="0.55"/>
+          <stop offset="0%"   stop-color="#B7D910" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#98BD09" stop-opacity="0.55"/>
         </linearGradient>
         <linearGradient id="barPricy" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stop-color="#fb7185" stop-opacity="1"/>
-          <stop offset="100%" stop-color="#ef4444" stop-opacity="0.55"/>
+          <stop offset="0%"   stop-color="#FBBF24" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.55"/>
         </linearGradient>
         <filter id="glowGreen" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="2.2" result="b"/>
@@ -645,9 +644,9 @@
       const badge =
         isCrown ? '<span class="cell-badge">👑</span>' :
         isFlame ? '<span class="cell-badge">🔥</span>' :
-        isCheap ? '<span class="cell-badge leaf">🌿</span>' :
-        isPricy ? '<span class="cell-badge fire">🔺</span>' :
-        isNow   ? '<span class="cell-badge now">●</span>' : '';
+        isCheap ? '<span class="cell-badge">•</span>' :
+        isPricy ? '<span class="cell-badge">•</span>' :
+        isNow   ? '<span class="cell-badge">●</span>' : '';
 
       cell.innerHTML = `
         ${badge}

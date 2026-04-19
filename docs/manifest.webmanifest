@@ -1,13 +1,13 @@
 {
-  "name": "Volts · Latvia electricity",
-  "short_name": "Volts",
+  "name": "EngyCell Prices",
+  "short_name": "EngyCell",
   "description": "15-minute Nord Pool electricity prices for Latvia.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#071C23",
+  "theme_color": "#071C23",
   "icons": [
     { "src": "icon.svg",    "type": "image/svg+xml", "sizes": "any",     "purpose": "any maskable" },
     { "src": "icon-180.png", "type": "image/png",    "sizes": "180x180" },
