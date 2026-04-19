@@ -1,60 +1,61 @@
-# Volts — Latvian Electricity Prices
+# Volts ⚡ — Latvia electricity prices
 
-A small, nice-looking SwiftUI iPhone app that shows Nordpool 15-minute electricity prices for **today** and **tomorrow** in Latvia.
+A small, nice-looking app that shows **15-minute Nord Pool electricity prices** for today and tomorrow in Latvia, with the **4 cheapest** and **4 most expensive** slots highlighted.
 
-Data source: `https://nordpool.didnt.work/nordpool-lv.csv`
+Two versions live in this repo:
 
-## Features
+- **Web app** (`docs/`) — opens in Safari, can be added to your iPhone home screen, no Xcode / no Mac required. **This is the easy one.**
+- **Native iOS app** (`ElectricityPrices/` + `ElectricityPrices.xcodeproj`) — requires a Mac + Xcode. See bottom of this file.
 
-- Today / Tomorrow toggle (tomorrow appears after Nordpool publishes, usually ~13:00 CET)
-- Smooth area + line chart of 15-minute prices
-- "Right now" hero card with the current slot highlighted
-- **Green leaf** markers on the 4 cheapest 15-min periods
-- **Red flame** markers on the 4 most expensive 15-min periods
-- Rows colour-shift from green → amber → red based on relative price
-- Pull-to-refresh and a refresh toolbar button
-- Prices shown in ¢/kWh (converted from the Nordpool EUR/MWh feed)
+---
 
-## Requirements
+## 🟢 Easy path — put the web app on your iPhone
 
-- macOS with **Xcode 15 or newer** (iOS 17 SDK)
-- An **iPhone** running iOS 17+
-- A free Apple ID (no paid developer account needed for 7-day on-device signing)
+### Step 1 — Turn on GitHub Pages (one-time, ~30 seconds)
+1. On GitHub, open this repository: **`kkarlsons/git_practice`**.
+2. Click **Settings** (top tab).
+3. In the left sidebar click **Pages**.
+4. Under *Build and deployment*:
+   - **Source:** *Deploy from a branch*
+   - **Branch:** pick `claude/electricity-price-app-gztas` (or `main` if you've merged it) and folder **`/docs`**.
+   - Click **Save**.
+5. Wait ~1 minute. The page will show a green box with a URL that looks like:
+   `https://kkarlsons.github.io/git_practice/`
+6. That's the app. Open it in any browser to test.
 
-## Deploy to your phone
+### Step 2 — Add it to your iPhone home screen
+1. Open the URL above in **Safari on your iPhone** (it has to be Safari, not Chrome).
+2. Tap the **Share** button (the square with an arrow pointing up).
+3. Scroll down and tap **Add to Home Screen**.
+4. Tap **Add** (top right).
 
-1. Open `ElectricityPrices.xcodeproj` in Xcode.
-2. Select the **ElectricityPrices** target → *Signing & Capabilities*.
-3. Sign in with your Apple ID under *Team* and let Xcode create an automatic signing profile. If the bundle id `work.didnt.ElectricityPrices` is taken, change `PRODUCT_BUNDLE_IDENTIFIER` in the target's Build Settings to something unique like `com.<yourname>.volts`.
-4. Plug your iPhone in via USB (or pair it wirelessly).
-5. In Xcode's device menu, pick your iPhone, then press ⌘R.
-6. First launch on-device: on the iPhone go to *Settings → General → VPN & Device Management* and trust your developer profile.
+Done — there's now a **Volts** icon on your home screen. Tap it and it opens full-screen, no browser bars, just like a native app. It will remember your pick between Today/Tomorrow and refresh every time you open it.
 
-## Project layout
+### If prices don't load
+The app tries the Nordpool CSV directly first, then falls back to three public CORS proxies. If all four fail, tap the refresh button. The error shown on screen will say which step failed.
 
-```
-ElectricityPrices.xcodeproj/          Xcode project
-ElectricityPrices/
-  ElectricityPricesApp.swift          App entry
-  ContentView.swift                   UI (chart, hero, list)
-  PricesViewModel.swift               Observable state
-  PriceService.swift                  URLSession fetch + CSV parsing
-  Models.swift                        PricePoint, DayPrices
-  Assets.xcassets/                    App icon + accent colour
-  Preview Content/                    Preview-only assets
-project.yml                           XcodeGen spec (optional, see below)
-```
+---
 
-## Regenerating the project with XcodeGen (optional)
+## What the app shows
+- **Today / Tomorrow** toggle (tomorrow usually appears around 14:00 Riga time)
+- A hero card with the **current 15-min slot** price in ¢/kWh
+- A smooth area + line **chart** of all 96 slots
+- 🌿 Green markers on the **4 cheapest** slots
+- 🔥 Red markers on the **4 most expensive** slots
+- A scrollable list with a per-slot price bar and "NOW" badge
+- Pull-to-refresh, plus a refresh button
+- Automatic dark mode that follows your phone's setting
 
-If the included `.xcodeproj` misbehaves, you can regenerate it from `project.yml`:
+---
 
-```bash
-brew install xcodegen
-xcodegen generate
-```
+## 🔵 Hard path — native iOS app (needs a Mac + Xcode)
 
-## Notes
+If you ever want to build the native version, the Xcode project is in this repo:
 
-- The CSV parser auto-detects `,` / `;` / `\t` delimiters and tolerates several header name variants (`start`, `timestamp`, `deliveryStart`, …). If the upstream feed ever changes, only `PriceService.swift` should need an update.
-- All price math is done in local time for `Europe/Riga` to bucket prices into today vs. tomorrow correctly.
+1. Open `ElectricityPrices.xcodeproj` in Xcode 15+.
+2. Select the **ElectricityPrices** target → *Signing & Capabilities* → sign in with your Apple ID under *Team*.
+3. If the bundle id `work.didnt.ElectricityPrices` is taken, change it to something unique.
+4. Plug in your iPhone, pick it in Xcode's device menu, press ⌘R.
+5. On the iPhone: *Settings → General → VPN & Device Management* → trust your dev profile.
+
+With a free Apple ID the app expires after 7 days; re-run ⌘R to refresh it.
