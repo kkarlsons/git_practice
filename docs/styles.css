@@ -150,36 +150,33 @@ button { font: inherit; color: inherit; font-family: inherit; }
 }
 
 /* Electricity wires — angular circuit-trace lines with current flowing through.
-   The whole SVG flickers at ~16Hz to read as live / buzzing current. */
+   The pulses flicker to read as live / buzzing current. */
 .wires {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   pointer-events: none;
   opacity: 1;
-  animation: wires-buzz 0.11s steps(2, end) infinite;
-}
-@keyframes wires-buzz {
-  0%, 100% { filter: brightness(1) saturate(1); }
-  50%      { filter: brightness(1.35) saturate(1.25); }
+  z-index: 0;
 }
 .wire-track {
-  stroke: rgba(183, 217, 16, 0.55);
-  stroke-width: 2;
+  stroke: #98BD09;
+  stroke-opacity: 0.72;
+  stroke-width: 2.6;
 }
 @media (prefers-color-scheme: light) {
-  .wire-track { stroke: rgba(3, 65, 60, 0.38); stroke-width: 1.6; }
+  .wire-track { stroke: #03413C; stroke-opacity: 0.5; stroke-width: 2; }
 }
 .wire-pulse {
-  stroke: #E8FF42;
-  stroke-width: 3.6;
-  /* Two bright segments per cycle, widely spaced, so a pulse is visible
-     somewhere on every wire most of the time. */
-  stroke-dasharray: 40 460 40 460;
-  filter: drop-shadow(0 0 9px rgba(232, 255, 66, 1))
-          drop-shadow(0 0 22px rgba(152, 189, 9, 0.85));
+  stroke: #F2FF6A;
+  stroke-width: 5;
+  /* Three bright segments per cycle so a pulse is visible somewhere on every
+     wire pretty much all the time. 80-unit segments = 8% of path length each. */
+  stroke-dasharray: 80 253 80 253 80 254;
+  filter: drop-shadow(0 0 10px rgba(232, 255, 66, 1))
+          drop-shadow(0 0 26px rgba(152, 189, 9, 0.9));
   animation:
     wire-flow var(--dur, 12s) linear infinite,
-    wire-jitter 0.08s steps(2, end) infinite;
+    wire-buzz 0.09s steps(2, end) infinite;
   animation-delay: var(--delay, 0s), 0s;
   will-change: stroke-dashoffset, opacity;
 }
@@ -187,12 +184,11 @@ button { font: inherit; color: inherit; font-family: inherit; }
   from { stroke-dashoffset: 1000; }
   to   { stroke-dashoffset: 0; }
 }
-@keyframes wire-jitter {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.78; }
+@keyframes wire-buzz {
+  0%, 100% { opacity: 1;    stroke-width: 5;   }
+  50%      { opacity: 0.65; stroke-width: 4.2; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wires { animation: none; }
   .wire-pulse { animation: none; stroke-dashoffset: 500; }
 }
 
