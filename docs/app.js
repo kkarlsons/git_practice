@@ -856,4 +856,12 @@
   // Remove the launch-animation class after the entrance finishes so that
   // subsequent renders don't replay the sweep.
   setTimeout(() => document.body.classList.remove('app-entering'), 900);
+
+  // Network-first service worker so the plain URL always resolves to the
+  // latest deployed assets; cached copy is only used when offline.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 })();
