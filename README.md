@@ -7,7 +7,7 @@ it takes to reach every other point by public transit + walking.
 - **Routing:** [r5py](https://r5py.readthedocs.io/) (RAPTOR algorithm) over
   Riga's published GTFS feed and OpenStreetMap data. No Google Directions API
   calls — travel-time computation runs locally, so a click costs nothing.
-- **Grid:** configurable. Default 100 m (~30k cells over Riga). 20 m is
+- **Grid:** configurable. Default 50 m (~120k cells over Riga). 20 m is
   possible (~720k cells) but each request takes minutes.
 
 ## Layout

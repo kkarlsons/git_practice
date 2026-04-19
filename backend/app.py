@@ -19,7 +19,7 @@ log = logging.getLogger("riga-heatmap")
 DATA_DIR = Path(os.environ.get("RIGA_DATA_DIR", Path(__file__).parent.parent / "data"))
 OSM_PATH = DATA_DIR / "latvia-latest.osm.pbf"
 GTFS_PATH = DATA_DIR / "riga-gtfs.zip"
-DEFAULT_GRID_M = int(os.environ.get("RIGA_GRID_M", "100"))
+DEFAULT_GRID_M = int(os.environ.get("RIGA_GRID_M", "50"))
 MAX_TRIP_MIN = int(os.environ.get("RIGA_MAX_TRIP_MIN", "90"))
 
 
