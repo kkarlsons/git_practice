@@ -6,8 +6,10 @@ import datetime as dt
 import io
 import logging
 import os
+import threading
 import zipfile
 from collections import Counter
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -58,7 +60,20 @@ _allowed_origins = [
     o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()
 ]
 
-app = FastAPI(title="Riga Transit Heatmap")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Build the transport network up front. Without this, two requests that
+    # arrive while the cache is cold both call into r5py's MapDB writer at
+    # once and the writer thread crashes (ArrayIndexOutOfBoundsException).
+    try:
+        _transport_network()
+    except Exception as e:
+        log.warning("Initial transport network build failed: %s", e)
+    yield
+
+
+app = FastAPI(title="Riga Transit Heatmap", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins or ["*"],
@@ -103,8 +118,11 @@ def _cached_grid(grid_m: int) -> Grid:
     return build_grid(grid_m=grid_m)
 
 
+_network_lock = threading.Lock()
+
+
 @lru_cache(maxsize=1)
-def _transport_network():
+def _build_network():
     import r5py
 
     gtfs = _gtfs_paths()
@@ -115,6 +133,13 @@ def _transport_network():
         )
     log.info("Loading transport network: OSM + %d GTFS feed(s): %s", len(gtfs), [p.name for p in gtfs])
     return r5py.TransportNetwork(str(OSM_PATH), [str(p) for p in gtfs])
+
+
+def _transport_network():
+    # Serialize concurrent first-time builds — r5py's MapDB writer is not
+    # safe against two threads writing the same files at once.
+    with _network_lock:
+        return _build_network()
 
 
 def _resolve_modes(names: list[str]) -> list:
