@@ -1,0 +1,17 @@
+# Replace `riga.example.com` with your domain. Caddy handles Let's Encrypt
+# automatically once DNS points at this host and ports 80/443 are open.
+riga.example.com {
+    encode zstd gzip
+
+    # API: strip /api prefix and forward to the backend container.
+    handle_path /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # Frontend: static files baked into the container.
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

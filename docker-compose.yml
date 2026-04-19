@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: .
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - ./data:/data:ro
+    environment:
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      RIGA_GRID_M: ${RIGA_GRID_M:-50}
+      RIGA_MAX_TRIP_MIN: ${RIGA_MAX_TRIP_MIN:-90}
+      JAVA_OPTS: "-Xmx4g"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:

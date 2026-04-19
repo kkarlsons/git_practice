@@ -23,10 +23,14 @@ DEFAULT_GRID_M = int(os.environ.get("RIGA_GRID_M", "50"))
 MAX_TRIP_MIN = int(os.environ.get("RIGA_MAX_TRIP_MIN", "90"))
 
 
+_allowed_origins = [
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()
+]
+
 app = FastAPI(title="Riga Transit Heatmap")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins or ["*"],
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
