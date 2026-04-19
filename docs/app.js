@@ -29,11 +29,16 @@
     return /[;,\t]/.test(lines[0]);
   }
 
+  const PER_SOURCE_TIMEOUT_MS = 8000;
+
   async function tryFetch(src) {
     const entry = { source: src.name, url: src.url, status: '-', bytes: 0, preview: '', ok: false, error: null };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), PER_SOURCE_TIMEOUT_MS);
     try {
       const res = await fetch(src.url, {
         cache: 'no-store',
+        signal: ctrl.signal,
         headers: { 'Accept': 'text/csv, text/plain, */*' },
         redirect: 'follow',
       });
@@ -47,14 +52,23 @@
       entry.text = text;
       return entry;
     } catch (e) {
-      entry.error = e.message || String(e);
+      entry.error = (e.name === 'AbortError') ? `timeout after ${PER_SOURCE_TIMEOUT_MS/1000}s` : (e.message || String(e));
       return entry;
+    } finally {
+      clearTimeout(timer);
     }
+  }
+
+  function setLoadingMsg(msg) {
+    const el = $('loading-msg');
+    if (el) el.textContent = msg;
   }
 
   async function fetchCSV() {
     state.diag = [];
-    for (const src of SOURCES) {
+    for (let i = 0; i < SOURCES.length; i++) {
+      const src = SOURCES[i];
+      setLoadingMsg(`Trying ${src.name}… (${i+1}/${SOURCES.length})`);
       const entry = await tryFetch(src);
       state.diag.push(entry);
       if (entry.ok) return entry.text;

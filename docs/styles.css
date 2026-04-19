@@ -151,6 +151,12 @@ main {
   animation: spin 0.8s linear infinite;
 }
 
+.loading-msg {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--card-border);
