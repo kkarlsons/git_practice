@@ -19,7 +19,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 DATA_DIR = Path(os.environ.get("RIGA_DATA_DIR", Path(__file__).parent.parent / "data"))
 OSM_PATH = DATA_DIR / "latvia-latest.osm.pbf"
-GTFS_PATH = DATA_DIR / "riga-gtfs.zip"
+
+
+def _gtfs_paths() -> list[Path]:
+    """Load every *.zip in the data dir as a GTFS feed."""
+    return sorted(DATA_DIR.glob("*.zip"))
 DEFAULT_GRID_M = int(os.environ.get("RIGA_GRID_M", "50"))
 MAX_TRIP_MIN = int(os.environ.get("RIGA_MAX_TRIP_MIN", "90"))
 
@@ -65,13 +69,14 @@ def _cached_grid(grid_m: int) -> Grid:
 def _transport_network():
     import r5py  # heavy import, defer until first request
 
-    if not OSM_PATH.exists() or not GTFS_PATH.exists():
+    gtfs = _gtfs_paths()
+    if not OSM_PATH.exists() or not gtfs:
         raise RuntimeError(
-            f"Missing data. Expected {OSM_PATH} and {GTFS_PATH}. "
-            "Run scripts/fetch_data.sh."
+            f"Missing data. Need {OSM_PATH} and at least one *.zip GTFS feed "
+            f"under {DATA_DIR}. Run scripts/fetch_data.sh."
         )
-    log.info("Loading transport network (OSM + GTFS). First call may take a minute.")
-    return r5py.TransportNetwork(str(OSM_PATH), [str(GTFS_PATH)])
+    log.info("Loading transport network: OSM + %d GTFS feed(s): %s", len(gtfs), [p.name for p in gtfs])
+    return r5py.TransportNetwork(str(OSM_PATH), [str(p) for p in gtfs])
 
 
 @app.get("/health")
@@ -79,7 +84,7 @@ def health() -> dict:
     return {
         "ok": True,
         "osm": OSM_PATH.exists(),
-        "gtfs": GTFS_PATH.exists(),
+        "gtfs_feeds": [p.name for p in _gtfs_paths()],
     }
 
 
