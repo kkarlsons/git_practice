@@ -3,10 +3,11 @@
 Web app: drop a point anywhere on a map of Riga, get back a heatmap of how long
 it takes to reach every other point by public transit + walking.
 
-- **Basemap:** Google Maps JavaScript API.
+- **Basemap:** MapLibre GL JS + OpenStreetMap raster tiles. No account or
+  API key required.
 - **Routing:** [r5py](https://r5py.readthedocs.io/) (RAPTOR algorithm) over
-  Riga's published GTFS feed and OpenStreetMap data. No Google Directions API
-  calls — travel-time computation runs locally, so a click costs nothing.
+  Riga's published GTFS feed and OpenStreetMap data. Travel-time computation
+  runs locally, so a click costs nothing.
 - **Grid:** configurable. Default 50 m (~120k cells over Riga). 20 m is
   possible (~720k cells) but each request takes minutes.
 
@@ -34,13 +35,13 @@ uvicorn backend.app:app --reload                       # backend on :8000
 python -m http.server --directory frontend 8080        # frontend on :8080
 ```
 
-Put your Google Maps key in `frontend/config.js` and set `backendUrl` to
-`http://localhost:8000` while developing locally.
+Set `backendUrl` in `frontend/config.js` to `http://localhost:8000` while
+developing locally.
 
 ## Deploying to your own server
 
-Prerequisites on the server: Docker + Docker Compose, a domain pointed at the
-server (A/AAAA record), and ports **80** and **443** open.
+Prerequisites on the server: Docker + Docker Compose, and port **2000** open
+(or whatever you change it to in `Caddyfile` + `docker-compose.yml`).
 
 ### 1. Clone and fetch data
 
@@ -49,29 +50,22 @@ git clone <this-repo> riga-heatmap && cd riga-heatmap
 ./scripts/fetch_data.sh    # pulls Latvia OSM (~90 MB) + Riga GTFS into ./data/
 ```
 
-### 2. Configure
+### 2. Configure (optional)
 
-Edit `Caddyfile` — replace `riga.example.com` with your domain.
-
-Edit `frontend/config.js` — paste your Google Maps JS API key. Leave
-`backendUrl: "/api"` as-is (same-origin through Caddy).
-
-Optionally create `.env` next to `docker-compose.yml`:
+Defaults work out of the box on `:2000`. To change behaviour, create `.env`
+next to `docker-compose.yml`:
 
 ```
-ALLOWED_ORIGINS=https://riga.example.com
 RIGA_GRID_M=50
 RIGA_MAX_TRIP_MIN=90
 ```
 
-### 3. Lock down the Google Maps key
+To move to HTTPS + a domain later, replace the `:2000 { ... }` block in
+`Caddyfile` with `yourdomain.com { ... }` and remap ports 80/443 in
+`docker-compose.yml`. Caddy will fetch a Let's Encrypt certificate on first
+start.
 
-In the Google Cloud Console, restrict the key by **HTTP referrer** to
-`https://riga.example.com/*`. The key is served in the static frontend and
-is visible to anyone who loads the page — referrer restrictions are what
-prevent abuse.
-
-### 4. Bring it up
+### 3. Bring it up
 
 ```bash
 docker compose up -d --build
@@ -79,16 +73,12 @@ docker compose logs -f         # watch until r5py finishes building its network
 ```
 
 First request takes ~60 s: r5py parses the OSM PBF + GTFS into an in-memory
-network and caches it as `*.mapdb` files inside the backend container.
+network and caches it.
 
-Caddy will fetch a Let's Encrypt certificate automatically on first start
-(DNS must resolve to the server already).
+### 4. Visit
 
-### 5. Visit
-
-Open `https://riga.example.com/` on any device, including your phone — the
-frontend is touch-friendly via the viewport meta tag, and the heatmap renders
-client-side.
+Open `http://<your-server>:2000/` on any device. The frontend is touch-friendly
+(viewport meta tag) and the heatmap renders client-side.
 
 ### Resource sizing
 

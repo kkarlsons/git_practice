@@ -1,42 +1,42 @@
-// Click-to-compute transit heatmap for Riga.
-// Renders results as a Canvas ground overlay (google.maps.OverlayView).
+// Click-to-compute transit heatmap for Riga, rendered on MapLibre GL.
 
-let map, marker, overlay;
+const RIGA_CENTER = [24.1052, 56.9496]; // [lng, lat]
 
-const RIGA_CENTER = { lat: 56.9496, lng: 24.1052 };
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: [
+          "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        ],
+        tileSize: 256,
+        attribution: "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors",
+      },
+    },
+    layers: [{ id: "osm", type: "raster", source: "osm" }],
+  },
+  center: RIGA_CENTER,
+  zoom: 11,
+});
 
-/* global google, initMap */
-window.initMap = function () {
-  map = new google.maps.Map(document.getElementById("map"), {
-    center: RIGA_CENTER,
-    zoom: 12,
-    clickableIcons: false,
-    streetViewControl: false,
-    mapTypeControl: false,
-    fullscreenControl: false,
-  });
+map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-  map.addListener("click", (e) => {
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    placeMarker(lat, lng);
-    computeAndRender(lat, lng);
-  });
-};
+let marker = null;
 
-function placeMarker(lat, lng) {
-  const position = { lat, lng };
+map.on("click", (e) => {
+  const { lng, lat } = e.lngLat;
   if (marker) {
-    marker.setPosition(position);
+    marker.setLngLat([lng, lat]);
   } else {
-    marker = new google.maps.Marker({
-      position,
-      map,
-      title: "Origin",
-      zIndex: 999,
-    });
+    marker = new maplibregl.Marker({ color: "#111" }).setLngLat([lng, lat]).addTo(map);
   }
-}
+  computeAndRender(lat, lng);
+});
 
 function setStatus(text, kind = "idle") {
   const el = document.getElementById("status");
@@ -77,77 +77,51 @@ async function computeAndRender(lat, lng) {
 }
 
 function renderHeatmap(data, maxSeconds) {
-  if (overlay) overlay.setMap(null);
-  overlay = new HeatmapOverlay(data, maxSeconds);
-  overlay.setMap(map);
-}
+  const canvas = document.createElement("canvas");
+  canvas.width = data.ncols;
+  canvas.height = data.nrows;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(data.ncols, data.nrows);
 
-/* ---------- Heatmap overlay ---------- */
-
-class HeatmapOverlay extends google.maps.OverlayView {
-  constructor(data, maxSeconds) {
-    super();
-    this.data = data;
-    this.maxSeconds = maxSeconds;
-    const [latMin, lonMin, latMax, lonMax] = data.bbox;
-    // Pad by half a cell so cell centers sit in cell middles.
-    const halfLat = (latMax - latMin) / (2 * (data.nrows - 1 || 1));
-    const halfLon = (lonMax - lonMin) / (2 * (data.ncols - 1 || 1));
-    this.bounds = new google.maps.LatLngBounds(
-      { lat: latMin - halfLat, lng: lonMin - halfLon },
-      { lat: latMax + halfLat, lng: lonMax + halfLon },
-    );
-    this.canvas = document.createElement("canvas");
-    this.canvas.width = data.ncols;
-    this.canvas.height = data.nrows;
-    this.canvas.style.position = "absolute";
-    this.canvas.style.opacity = "0.65";
-    this.canvas.style.pointerEvents = "none";
-    this.canvas.style.imageRendering = "pixelated";
-    this.paint();
-  }
-
-  paint() {
-    const { ncols, nrows, times } = this.data;
-    const ctx = this.canvas.getContext("2d");
-    const img = ctx.createImageData(ncols, nrows);
-    for (let r = 0; r < nrows; r++) {
-      // Canvas y grows downward, our row 0 is the southernmost row.
-      const srcRow = nrows - 1 - r;
-      for (let c = 0; c < ncols; c++) {
-        const t = times[srcRow * ncols + c];
-        const o = (r * ncols + c) * 4;
-        if (t < 0) {
-          img.data[o + 3] = 0;
-          continue;
-        }
-        const [R, G, B] = rampColor(Math.min(t / this.maxSeconds, 1));
-        img.data[o] = R;
-        img.data[o + 1] = G;
-        img.data[o + 2] = B;
-        img.data[o + 3] = 255;
+  for (let r = 0; r < data.nrows; r++) {
+    const srcRow = data.nrows - 1 - r; // row 0 = southernmost; canvas y goes down
+    for (let c = 0; c < data.ncols; c++) {
+      const t = data.times[srcRow * data.ncols + c];
+      const o = (r * data.ncols + c) * 4;
+      if (t < 0) {
+        img.data[o + 3] = 0;
+        continue;
       }
+      const [R, G, B] = rampColor(Math.min(t / maxSeconds, 1));
+      img.data[o] = R;
+      img.data[o + 1] = G;
+      img.data[o + 2] = B;
+      img.data[o + 3] = 255;
     }
-    ctx.putImageData(img, 0, 0);
   }
+  ctx.putImageData(img, 0, 0);
+  const url = canvas.toDataURL();
 
-  onAdd() {
-    this.getPanes().overlayLayer.appendChild(this.canvas);
-  }
+  const [latMin, lonMin, latMax, lonMax] = data.bbox;
+  const halfLat = (latMax - latMin) / (2 * (data.nrows - 1 || 1));
+  const halfLon = (lonMax - lonMin) / (2 * (data.ncols - 1 || 1));
+  const coords = [
+    [lonMin - halfLon, latMax + halfLat], // top-left
+    [lonMax + halfLon, latMax + halfLat], // top-right
+    [lonMax + halfLon, latMin - halfLat], // bottom-right
+    [lonMin - halfLon, latMin - halfLat], // bottom-left
+  ];
 
-  onRemove() {
-    this.canvas.remove();
-  }
-
-  draw() {
-    const proj = this.getProjection();
-    if (!proj) return;
-    const sw = proj.fromLatLngToDivPixel(this.bounds.getSouthWest());
-    const ne = proj.fromLatLngToDivPixel(this.bounds.getNorthEast());
-    this.canvas.style.left = sw.x + "px";
-    this.canvas.style.top = ne.y + "px";
-    this.canvas.style.width = ne.x - sw.x + "px";
-    this.canvas.style.height = sw.y - ne.y + "px";
+  if (map.getSource("heatmap")) {
+    map.getSource("heatmap").updateImage({ url, coordinates: coords });
+  } else {
+    map.addSource("heatmap", { type: "image", url, coordinates: coords });
+    map.addLayer({
+      id: "heatmap",
+      type: "raster",
+      source: "heatmap",
+      paint: { "raster-opacity": 0.65, "raster-resampling": "nearest" },
+    });
   }
 }
 
