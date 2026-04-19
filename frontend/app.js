@@ -44,9 +44,23 @@ function setStatus(text, kind = "idle") {
   el.className = `status ${kind}`;
 }
 
+function computeDeparture() {
+  const wantedDow = Number(document.getElementById("dow").value);
+  const [hh, mm] = document.getElementById("time").value.split(":").map(Number);
+  const now = new Date();
+  // Pick the nearest date (± a few days) whose weekday matches — keeps the
+  // chosen date inside the GTFS feed's validity window.
+  let diff = (wantedDow - now.getDay() + 7) % 7;
+  if (diff > 3) diff -= 7;
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff, hh, mm, 0, 0);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+}
+
 async function computeAndRender(lat, lng) {
   const gridM = Number(document.getElementById("grid-m").value);
   const maxMin = Number(document.getElementById("max-min").value);
+  const departure = computeDeparture();
   document.getElementById("legend-max").textContent = `${maxMin} min`;
 
   setStatus(`Computing travel times on a ${gridM} m grid…`, "loading");
@@ -57,7 +71,7 @@ async function computeAndRender(lat, lng) {
     const res = await fetch(`${window.APP_CONFIG.backendUrl}/travel_times`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lon: lng, grid_m: gridM, max_minutes: maxMin }),
+      body: JSON.stringify({ lat, lon: lng, grid_m: gridM, max_minutes: maxMin, departure }),
     });
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
     data = await res.json();
