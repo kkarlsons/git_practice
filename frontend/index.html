@@ -50,11 +50,26 @@
       </label>
     </div>
 
+    <fieldset>
+      <legend>Modes</legend>
+      <label class="chk"><input type="checkbox" class="mode" value="BUS" checked> Bus</label>
+      <label class="chk"><input type="checkbox" class="mode" value="TROLLEYBUS" checked> Trolleybus</label>
+      <label class="chk"><input type="checkbox" class="mode" value="TRAM" checked> Tram</label>
+      <label class="chk"><input type="checkbox" class="mode" value="RAIL" checked> Train</label>
+    </fieldset>
+
+    <label>Show
+      <select id="view">
+        <option value="time" selected>Travel time</option>
+        <option value="rides">Number of rides</option>
+      </select>
+    </label>
+
     <div id="status" class="status idle">Waiting for a click…</div>
 
     <div class="legend">
-      <div class="legend-bar"></div>
-      <div class="legend-labels"><span>0</span><span id="legend-max">60 min</span></div>
+      <div id="legend-bar" class="legend-bar"></div>
+      <div class="legend-labels"><span id="legend-min">0</span><span id="legend-max">60 min</span></div>
     </div>
   </aside>
 

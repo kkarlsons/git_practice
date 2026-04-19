@@ -20,6 +20,11 @@ html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
 #panel .row { display: flex; gap: 8px; }
 #panel .row > label { flex: 1; }
 
+#panel fieldset { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; margin: 0 0 10px; }
+#panel fieldset legend { font-size: 11px; color: #666; padding: 0 4px; }
+#panel .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; margin: 2px 8px 2px 0; }
+#panel .chk input { margin: 0; }
+
 .status { margin-top: 12px; font-size: 12px; padding: 8px; border-radius: 6px; }
 .status.idle    { background: #f1f5f9; color: #334155; }
 .status.loading { background: #fef3c7; color: #92400e; }

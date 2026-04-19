@@ -57,13 +57,23 @@ function computeDeparture() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 }
 
+function selectedModes() {
+  const modes = Array.from(document.querySelectorAll(".mode:checked")).map((el) => el.value);
+  modes.push("WALK"); // walking is always allowed (access/egress to transit)
+  return modes;
+}
+
 async function computeAndRender(lat, lng) {
   const gridM = Number(document.getElementById("grid-m").value);
   const maxMin = Number(document.getElementById("max-min").value);
+  const view = document.getElementById("view").value;
+  const modes = selectedModes();
   const departure = computeDeparture();
-  document.getElementById("legend-max").textContent = `${maxMin} min`;
 
-  setStatus(`Computing travel times on a ${gridM} m grid…`, "loading");
+  const loadMsg = view === "rides"
+    ? `Computing number of rides (${gridM} m grid, ~15 s)…`
+    : `Computing travel times (${gridM} m grid)…`;
+  setStatus(loadMsg, "loading");
   const t0 = performance.now();
 
   let data;
@@ -71,7 +81,10 @@ async function computeAndRender(lat, lng) {
     const res = await fetch(`${window.APP_CONFIG.backendUrl}/travel_times`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lon: lng, grid_m: gridM, max_minutes: maxMin, departure }),
+      body: JSON.stringify({
+        lat, lon: lng, grid_m: gridM, max_minutes: maxMin,
+        departure, modes, view,
+      }),
     });
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
     data = await res.json();
@@ -82,31 +95,50 @@ async function computeAndRender(lat, lng) {
 
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
   const pct = ((data.stats.reached / data.stats.cells) * 100).toFixed(0);
+  const medianLabel = view === "rides"
+    ? `median ${data.stats.median} ride(s)`
+    : `median ${Math.round(data.stats.median / 60)} min`;
   setStatus(
-    `Reached ${pct}% of ${data.stats.cells} cells • median ${Math.round(data.stats.median_seconds / 60)} min • ${elapsed}s`,
+    `Reached ${pct}% of ${data.stats.cells} cells • ${medianLabel} • ${elapsed}s`,
     "ok",
   );
 
-  renderHeatmap(data, maxMin * 60);
+  updateLegend(view, maxMin);
+  renderHeatmap(data, view === "rides" ? MAX_RIDES_DISPLAY : maxMin * 60);
 }
 
-function renderHeatmap(data, maxSeconds) {
+const MAX_RIDES_DISPLAY = 4; // colors saturate at 4+ rides
+
+function updateLegend(view, maxMin) {
+  const minEl = document.getElementById("legend-min");
+  const maxEl = document.getElementById("legend-max");
+  if (view === "rides") {
+    minEl.textContent = "0";
+    maxEl.textContent = `${MAX_RIDES_DISPLAY}+`;
+  } else {
+    minEl.textContent = "0";
+    maxEl.textContent = `${maxMin} min`;
+  }
+}
+
+function renderHeatmap(data, maxValue) {
   const canvas = document.createElement("canvas");
   canvas.width = data.ncols;
   canvas.height = data.nrows;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(data.ncols, data.nrows);
+  const values = data.values;
 
   for (let r = 0; r < data.nrows; r++) {
-    const srcRow = data.nrows - 1 - r; // row 0 = southernmost; canvas y goes down
+    const srcRow = data.nrows - 1 - r;
     for (let c = 0; c < data.ncols; c++) {
-      const t = data.times[srcRow * data.ncols + c];
+      const v = values[srcRow * data.ncols + c];
       const o = (r * data.ncols + c) * 4;
-      if (t < 0) {
+      if (v < 0) {
         img.data[o + 3] = 0;
         continue;
       }
-      const [R, G, B] = rampColor(Math.min(t / maxSeconds, 1));
+      const [R, G, B] = rampColor(Math.min(v / maxValue, 1));
       img.data[o] = R;
       img.data[o + 1] = G;
       img.data[o + 2] = B;
