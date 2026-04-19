@@ -9,8 +9,8 @@
   color-scheme: dark light;
 
   /* --- Dark is the brand default (matches Engycell comms) --- */
-  --bg-0: #030F14;              /* 1 shade deeper than #071C23 for depth */
-  --bg-1: #071C23;              /* primary dark teal */
+  --bg-0: #05161C;              /* slightly deeper for depth */
+  --bg-1: #0A2B26;              /* green-teal base — pulls #071C23 toward #03413C */
   --bg-2: #03413C;              /* secondary deep teal */
   --text: #EEEEEE;
   --text-strong: #FFFFFF;
@@ -111,10 +111,10 @@ button { font: inherit; color: inherit; font-family: inherit; }
   z-index: -1;
   overflow: hidden;
   background:
-    radial-gradient(900px 500px at 20% -10%, rgba(152, 189, 9, 0.22), transparent 70%),
-    radial-gradient(1300px 1100px at 50% 45%, rgba(152, 189, 9, 0.32), transparent 65%),
+    radial-gradient(900px 500px at 20% -10%, rgba(152, 189, 9, 0.28), transparent 70%),
+    radial-gradient(1300px 1100px at 50% 45%, rgba(152, 189, 9, 0.40), transparent 65%),
     radial-gradient(1100px 700px at 110% -10%, rgba(3, 65, 60, 0.55), transparent 60%),
-    radial-gradient(1000px 800px at -10% 110%, rgba(152, 189, 9, 0.30), transparent 60%),
+    radial-gradient(1000px 800px at -10% 110%, rgba(152, 189, 9, 0.38), transparent 60%),
     var(--bg-1);
 }
 @media (prefers-color-scheme: light) {
@@ -149,15 +149,21 @@ button { font: inherit; color: inherit; font-family: inherit; }
   mix-blend-mode: overlay;
 }
 
-/* Electricity wires — angular circuit-trace lines with current flowing through */
+/* Electricity wires — angular circuit-trace lines with current flowing through.
+   The whole SVG flickers at ~16Hz to read as live / buzzing current. */
 .wires {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   pointer-events: none;
   opacity: 1;
+  animation: wires-buzz 0.11s steps(2, end) infinite;
+}
+@keyframes wires-buzz {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50%      { filter: brightness(1.35) saturate(1.25); }
 }
 .wire-track {
-  stroke: rgba(183, 217, 16, 0.50);
+  stroke: rgba(183, 217, 16, 0.55);
   stroke-width: 2;
 }
 @media (prefers-color-scheme: light) {
@@ -171,15 +177,22 @@ button { font: inherit; color: inherit; font-family: inherit; }
   stroke-dasharray: 40 460 40 460;
   filter: drop-shadow(0 0 9px rgba(232, 255, 66, 1))
           drop-shadow(0 0 22px rgba(152, 189, 9, 0.85));
-  animation: wire-flow var(--dur, 12s) linear infinite;
-  animation-delay: var(--delay, 0s);
-  will-change: stroke-dashoffset;
+  animation:
+    wire-flow var(--dur, 12s) linear infinite,
+    wire-jitter 0.08s steps(2, end) infinite;
+  animation-delay: var(--delay, 0s), 0s;
+  will-change: stroke-dashoffset, opacity;
 }
 @keyframes wire-flow {
   from { stroke-dashoffset: 1000; }
   to   { stroke-dashoffset: 0; }
 }
+@keyframes wire-jitter {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.78; }
+}
 @media (prefers-reduced-motion: reduce) {
+  .wires { animation: none; }
   .wire-pulse { animation: none; stroke-dashoffset: 500; }
 }
 

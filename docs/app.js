@@ -98,7 +98,30 @@
     for (const r of raw) r.centsKWh = r.native * unit.mul;
 
     raw.sort((a, b) => a.start - b.start);
+    alignToRigaMidnight(raw);
     return raw;
+  }
+
+  // Nordpool day-ahead is always a set of complete days starting at 00:00
+  // local, so the very first row must land on 00:00 Riga. If it doesn't, the
+  // CSV is in some other timezone (e.g. CET/CEST) — compute the offset and
+  // shift every row so the buckets align correctly.
+  const _rigaHMFmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  function alignToRigaMidnight(rows) {
+    if (!rows.length) return;
+    const parts = _rigaHMFmt.formatToParts(rows[0].start)
+      .reduce((o, p) => (o[p.type] = p.value, o), {});
+    const mins = (+parts.hour) * 60 + (+parts.minute);
+    if (mins === 0) return;
+    // Pick the smaller of the two candidate shifts (±12h window).
+    const shiftMin = mins <= 720 ? -mins : (24 * 60 - mins);
+    const shiftMs = shiftMin * 60 * 1000;
+    for (const r of rows) {
+      r.start = new Date(+r.start + shiftMs);
+      r.end   = new Date(+r.end   + shiftMs);
+    }
   }
 
   /** Detect unit from header hints + magnitude heuristic. Returns { mul, label }. */
