@@ -10,7 +10,8 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       RIGA_GRID_M: ${RIGA_GRID_M:-50}
       RIGA_MAX_TRIP_MIN: ${RIGA_MAX_TRIP_MIN:-90}
-      JAVA_OPTS: "-Xmx4g"
+      # JVM auto-reads JAVA_TOOL_OPTIONS; JAVA_OPTS is ignored unless a launcher script passes it.
+      JAVA_TOOL_OPTIONS: "-Xmx6g"
 
   caddy:
     image: caddy:2
