@@ -111,17 +111,18 @@ button { font: inherit; color: inherit; font-family: inherit; }
   z-index: -1;
   overflow: hidden;
   background:
-    radial-gradient(900px 900px at 50% 45%, rgba(152, 189, 9, 0.18), transparent 65%),
+    radial-gradient(900px 500px at 20% -10%, rgba(152, 189, 9, 0.22), transparent 70%),
+    radial-gradient(1300px 1100px at 50% 45%, rgba(152, 189, 9, 0.32), transparent 65%),
     radial-gradient(1100px 700px at 110% -10%, rgba(3, 65, 60, 0.55), transparent 60%),
-    radial-gradient(900px 600px at -10% 110%, rgba(152, 189, 9, 0.14), transparent 60%),
+    radial-gradient(1000px 800px at -10% 110%, rgba(152, 189, 9, 0.30), transparent 60%),
     var(--bg-1);
 }
 @media (prefers-color-scheme: light) {
   .bg {
     background:
-      radial-gradient(900px 900px at 50% 45%, rgba(152, 189, 9, 0.10), transparent 65%),
+      radial-gradient(1200px 900px at 50% 45%, rgba(152, 189, 9, 0.14), transparent 65%),
       radial-gradient(1100px 700px at 110% -10%, rgba(152, 189, 9, 0.18), transparent 60%),
-      radial-gradient(900px 600px at -10% 110%, rgba(3, 65, 60, 0.08), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(3, 65, 60, 0.10), transparent 60%),
       var(--bg-1);
   }
 }
