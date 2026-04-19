@@ -1,32 +1,66 @@
 (() => {
   const CSV_URL = 'https://nordpool.didnt.work/nordpool-lv.csv';
   // CORS fallbacks in case the feed doesn't set Access-Control-Allow-Origin.
-  const PROXIES = [
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  const SOURCES = [
+    { name: 'direct',     url: CSV_URL },
+    { name: 'corsproxy',  url: `https://corsproxy.io/?${encodeURIComponent(CSV_URL)}` },
+    { name: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}` },
+    { name: 'codetabs',   url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(CSV_URL)}` },
+    { name: 'thingproxy', url: `https://thingproxy.freeboard.io/fetch/${CSV_URL}` },
   ];
   const TZ = 'Europe/Riga';
 
   const $ = id => document.getElementById(id);
-  const state = { selected: 'today', today: [], tomorrow: [], updatedAt: null };
+  const state = {
+    selected: 'today',
+    today: [], tomorrow: [],
+    updatedAt: null,
+    diag: [], // {source, status, bytes, preview, ok}
+  };
 
   // -------- Networking --------
 
-  async function fetchCSV() {
-    const attempts = [
-      async () => await (await fetch(CSV_URL, { cache: 'no-store' })).text(),
-      ...PROXIES.map(p => async () => await (await fetch(p(CSV_URL), { cache: 'no-store' })).text()),
-    ];
-    let lastErr;
-    for (const go of attempts) {
-      try {
-        const text = await go();
-        if (text && text.length > 20) return text;
-        lastErr = new Error('Empty response');
-      } catch (e) { lastErr = e; }
+  function looksLikeCSV(text) {
+    if (!text || text.length < 50) return false;
+    const head = text.slice(0, 2000).toLowerCase();
+    if (head.includes('<html') || head.includes('<!doctype')) return false;
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 3) return false;
+    return /[;,\t]/.test(lines[0]);
+  }
+
+  async function tryFetch(src) {
+    const entry = { source: src.name, url: src.url, status: '-', bytes: 0, preview: '', ok: false, error: null };
+    try {
+      const res = await fetch(src.url, {
+        cache: 'no-store',
+        headers: { 'Accept': 'text/csv, text/plain, */*' },
+        redirect: 'follow',
+      });
+      entry.status = res.status;
+      const text = await res.text();
+      entry.bytes = text.length;
+      entry.preview = text.slice(0, 180).replace(/\s+/g, ' ').trim();
+      if (!res.ok) { entry.error = `HTTP ${res.status}`; return entry; }
+      if (!looksLikeCSV(text)) { entry.error = 'Response did not look like CSV'; return entry; }
+      entry.ok = true;
+      entry.text = text;
+      return entry;
+    } catch (e) {
+      entry.error = e.message || String(e);
+      return entry;
     }
-    throw lastErr || new Error('All fetch attempts failed');
+  }
+
+  async function fetchCSV() {
+    state.diag = [];
+    for (const src of SOURCES) {
+      const entry = await tryFetch(src);
+      state.diag.push(entry);
+      if (entry.ok) return entry.text;
+    }
+    const msg = state.diag.map(d => `• ${d.source}: ${d.ok ? 'OK' : d.error} (${d.bytes}B)`).join('\n');
+    throw new Error(`All sources failed.\n${msg}`);
   }
 
   // -------- CSV parsing --------
@@ -321,6 +355,7 @@
       render();
     } catch (e) {
       $('error-msg').textContent = e.message || String(e);
+      renderDiagnostics();
       $('error').classList.remove('hidden');
       $('content').classList.add('hidden');
     } finally {
@@ -328,6 +363,21 @@
       $('refresh').classList.remove('spinning');
     }
   }
+
+  function renderDiagnostics() {
+    const box = $('diag');
+    if (!box) return;
+    if (!state.diag.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="diag-title">What happened</div>' + state.diag.map(d => `
+      <details class="diag-item">
+        <summary><span class="${d.ok ? 'pill ok' : 'pill bad'}">${d.source}</span>
+          <span class="diag-status">${d.ok ? `OK · ${d.bytes} bytes` : (d.error || 'failed')}</span>
+        </summary>
+        <div class="diag-body"><div class="diag-url">${d.url}</div><pre>${escapeHTML(d.preview || '(empty)')}</pre></div>
+      </details>
+    `).join('');
+  }
+  function escapeHTML(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 
   // -------- UI wiring --------
 
