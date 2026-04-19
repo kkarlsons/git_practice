@@ -69,6 +69,8 @@ async function computeAndRender(lat, lng) {
   const view = document.getElementById("view").value;
   const modes = selectedModes();
   const departure = computeDeparture();
+  const maxRidesRaw = document.getElementById("max-rides").value;
+  const maxRides = maxRidesRaw === "" ? null : Number(maxRidesRaw);
 
   const loadMsg = view === "rides"
     ? `Computing number of rides (${gridM} m grid, ~15 s)…`
@@ -83,7 +85,7 @@ async function computeAndRender(lat, lng) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         lat, lon: lng, grid_m: gridM, max_minutes: maxMin,
-        departure, modes, view,
+        departure, modes, view, max_rides: maxRides,
       }),
     });
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
