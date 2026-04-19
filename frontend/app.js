@@ -27,8 +27,13 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl(), "top-right");
 
 let marker = null;
+let backendReady = false;
 
 map.on("click", (e) => {
+  if (!backendReady) {
+    setStatus("Backend still warming up — give it a moment…", "loading");
+    return;
+  }
   const { lng, lat } = e.lngLat;
   if (marker) {
     marker.setLngLat([lng, lat]);
@@ -37,6 +42,30 @@ map.on("click", (e) => {
   }
   computeAndRender(lat, lng);
 });
+
+async function waitForBackend() {
+  setStatus("Warming up transit network (first load ~60s)…", "loading");
+  while (!backendReady) {
+    try {
+      const res = await fetch(`${window.APP_CONFIG.backendUrl}/ready`);
+      const j = await res.json();
+      if (j.ready) {
+        backendReady = true;
+        setStatus(`Ready — tap anywhere in Riga. (warmup: ${j.elapsed_s}s)`, "ok");
+        return;
+      }
+      if (j.error) {
+        setStatus(`Backend failed to load: ${j.error}`, "error");
+        return;
+      }
+      setStatus(`Warming up transit network — ${j.elapsed_s}s elapsed…`, "loading");
+    } catch (err) {
+      // Backend not reachable yet; keep polling.
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+waitForBackend();
 
 function setStatus(text, kind = "idle") {
   const el = document.getElementById("status");

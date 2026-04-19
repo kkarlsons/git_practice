@@ -119,11 +119,20 @@ def _cached_grid(grid_m: int) -> Grid:
 
 
 _network_lock = threading.Lock()
+_network_status = {"ready": False, "started_at": None, "elapsed_s": 0.0, "error": None}
+
+
+def _heartbeat(stop: threading.Event, label: str) -> None:
+    import time as _time
+    start = _time.monotonic()
+    while not stop.wait(5):
+        log.info("%s still running (%ds elapsed)…", label, int(_time.monotonic() - start))
 
 
 @lru_cache(maxsize=1)
 def _build_network():
     import r5py
+    import time as _time
 
     gtfs = _gtfs_paths()
     if not OSM_PATH.exists() or not gtfs:
@@ -132,7 +141,20 @@ def _build_network():
             f"under {DATA_DIR}. Run scripts/fetch_data.sh."
         )
     log.info("Loading transport network: OSM + %d GTFS feed(s): %s", len(gtfs), [p.name for p in gtfs])
-    return r5py.TransportNetwork(str(OSM_PATH), [str(p) for p in gtfs])
+    _network_status["started_at"] = _time.monotonic()
+    stop = threading.Event()
+    threading.Thread(target=_heartbeat, args=(stop, "Transport-network build"), daemon=True).start()
+    try:
+        net = r5py.TransportNetwork(str(OSM_PATH), [str(p) for p in gtfs])
+    except Exception as e:
+        _network_status["error"] = str(e)
+        raise
+    finally:
+        stop.set()
+        _network_status["elapsed_s"] = _time.monotonic() - (_network_status["started_at"] or _time.monotonic())
+    _network_status["ready"] = True
+    log.info("Transport network ready in %.1fs", _network_status["elapsed_s"])
+    return net
 
 
 def _transport_network():
@@ -156,6 +178,20 @@ def _resolve_modes(names: list[str]) -> list:
         else:
             log.warning("Unknown transport mode %r (have: %s)", n, sorted(available))
     return modes
+
+
+@app.get("/ready")
+def ready() -> dict:
+    import time as _time
+    started = _network_status["started_at"]
+    elapsed = _network_status["elapsed_s"] if _network_status["ready"] else (
+        (_time.monotonic() - started) if started else 0.0
+    )
+    return {
+        "ready": _network_status["ready"],
+        "elapsed_s": round(elapsed, 1),
+        "error": _network_status["error"],
+    }
 
 
 @app.get("/health")
