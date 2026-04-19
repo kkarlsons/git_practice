@@ -221,6 +221,7 @@
   function render() {
     const rows = state.selected === 'today' ? state.today : state.tomorrow;
     const content = $('content');
+    $('loading').classList.add('hidden');
 
     if (!rows.length) {
       content.classList.remove('hidden');

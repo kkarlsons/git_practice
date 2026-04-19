@@ -156,18 +156,20 @@ button { font: inherit; color: inherit; font-family: inherit; }
   opacity: 1;
 }
 .wire-track {
-  stroke: rgba(152, 189, 9, 0.32);
-  stroke-width: 1.6;
+  stroke: rgba(183, 217, 16, 0.50);
+  stroke-width: 2;
 }
 @media (prefers-color-scheme: light) {
-  .wire-track { stroke: rgba(3, 65, 60, 0.28); }
+  .wire-track { stroke: rgba(3, 65, 60, 0.38); stroke-width: 1.6; }
 }
 .wire-pulse {
-  stroke: #D6F024;
-  stroke-width: 3.2;
-  stroke-dasharray: 26 974;
-  filter: drop-shadow(0 0 8px rgba(214, 240, 36, 1))
-          drop-shadow(0 0 18px rgba(152, 189, 9, 0.75));
+  stroke: #E8FF42;
+  stroke-width: 3.6;
+  /* Two bright segments per cycle, widely spaced, so a pulse is visible
+     somewhere on every wire most of the time. */
+  stroke-dasharray: 40 460 40 460;
+  filter: drop-shadow(0 0 9px rgba(232, 255, 66, 1))
+          drop-shadow(0 0 22px rgba(152, 189, 9, 0.85));
   animation: wire-flow var(--dur, 12s) linear infinite;
   animation-delay: var(--delay, 0s);
   will-change: stroke-dashoffset;
