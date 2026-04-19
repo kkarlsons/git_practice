@@ -196,16 +196,24 @@
 
     if (!rows.length) {
       content.classList.remove('hidden');
-      setPill('normal', state.selected === 'tomorrow' ? 'NOT PUBLISHED' : 'NO DATA');
-      $('hero-label').textContent = state.selected === 'tomorrow' ? 'Tomorrow' : 'Today';
+      const isTomorrow = state.selected === 'tomorrow';
+      setPill('normal', isTomorrow ? 'NOT PUBLISHED' : 'NO DATA');
+      setHeroLabel(isTomorrow ? 'Tomorrow' : 'Today', false);
       setHeroValue('—', null);
-      $('hero-sub').textContent = state.selected === 'tomorrow'
+      $('hero-sub').textContent = isTomorrow
         ? 'Usually published around 14:00 Riga'
         : 'Tap refresh to retry';
       $('hero-delta').textContent = '';
       $('hero-delta').className = 'hero-delta';
       $('hero-spark').innerHTML = '';
-      $('insight').classList.add('hidden');
+      if (isTomorrow) {
+        $('insight-icon').textContent = '🕒';
+        $('insight-title').textContent = 'Prices not yet published';
+        $('insight-sub').textContent = 'Nordpool publishes tomorrow\'s prices around 14:00 Riga time. Check back later.';
+        $('insight').classList.remove('hidden');
+      } else {
+        $('insight').classList.add('hidden');
+      }
       $('stat-lo').textContent = '—'; $('stat-lo-sub').textContent = '';
       $('stat-hi').textContent = '—'; $('stat-hi-sub').textContent = '';
       $('chart').innerHTML = '';
@@ -240,7 +248,7 @@
       const label = isCheap ? '🌿 CHEAP NOW' : isPricy ? '🔥 EXPENSIVE NOW' : '⚡ NORMAL';
 
       setPill(variant, label);
-      $('hero-label').textContent = 'Right now';
+      setHeroLabel('Right now', true);
       setHeroValue(fmt2(currentRow.centsKWh), variant);
       $('hero-sub').textContent = `${fmtTime(currentRow.start)}–${fmtTime(currentRow.end)}`;
 
@@ -250,7 +258,7 @@
       deltaEl.className = 'hero-delta ' + (deltaPct < -5 ? 'good' : deltaPct > 5 ? 'bad' : '');
     } else {
       setPill('normal', state.selected === 'tomorrow' ? 'TOMORROW' : 'AVERAGE');
-      $('hero-label').textContent = state.selected === 'tomorrow' ? 'Tomorrow · avg' : 'Day average';
+      setHeroLabel(state.selected === 'tomorrow' ? 'Tomorrow · avg' : 'Day average', false);
       setHeroValue(fmt2(avg), 'normal');
       $('hero-sub').textContent = `${fmtTime(rows[0].start)}–${fmtTime(rows[rows.length-1].end)}`;
       $('hero-delta').textContent = `range ${fmt2(lo)} – ${fmt2(hi)}`;
@@ -289,6 +297,11 @@
     const p = $('hero-pill');
     p.className = 'pill ' + variant;
     p.textContent = text;
+  }
+  function setHeroLabel(text, live) {
+    const el = $('hero-label');
+    el.textContent = text;
+    el.className = 'hero-label' + (live ? ' live' : '');
   }
   function setHeroValue(text, variant) {
     const v = $('hero-value');
