@@ -357,7 +357,9 @@
 
   function drawSparkline(rows, lo, hi, currentRow) {
     const svg = $('hero-spark');
-    const W = 340, H = 60, pad = 2;
+    const containerW = Math.max(280, Math.round(svg.getBoundingClientRect().width || 340));
+    const W = containerW, H = 60, pad = 2;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const n = rows.length;
     const chartW = W - pad*2, chartH = H - pad*2;
     const yMin = Math.min(lo, 0), yMax = hi + (hi - yMin) * 0.1;
@@ -395,53 +397,148 @@
     `;
   }
 
-  // ------------------------------ Main chart
+  // ------------------------------ Main chart (bar field)
 
   function drawChart(rows, lo, hi, avg, cheapest, priciest) {
     const svg = $('chart');
-    const W = 640, H = 260, padL = 38, padR = 14, padT = 18, padB = 28;
+    // Size the viewBox to the actual container width so bars render crisply
+    // without horizontal scaling.
+    const containerW = Math.max(320, Math.round(svg.getBoundingClientRect().width || 360));
+    const W = containerW, H = 280, padL = 34, padR = 14, padT = 30, padB = 30;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const n = rows.length;
     const chartW = W - padL - padR, chartH = H - padT - padB;
-    const x = i => padL + (n <= 1 ? chartW/2 : (i * chartW) / (n - 1));
-    const yMin = Math.min(lo, 0);
-    const yMax = hi + (hi - yMin) * 0.15;
-    const y = v => padT + chartH - ((v - yMin) / (yMax - yMin || 1)) * chartH;
+    const gap = 1;
+    const barW = Math.max(1.8, (chartW - gap * (n - 1)) / n);
+
+    // Always start bars from 0 so magnitude reads clearly.
+    const yMin = 0;
+    const yMax = Math.max(hi * 1.15, 0.01);
+    const y = v => padT + chartH - ((Math.max(0, v) - yMin) / (yMax - yMin)) * chartH;
 
     const css = getComputedStyle(document.documentElement);
     const muted = css.getPropertyValue('--muted').trim() || '#8893a7';
     const text  = css.getPropertyValue('--text').trim()  || '#f1f5f9';
-    const green = css.getPropertyValue('--green-1').trim() || '#34d399';
-    const red   = css.getPropertyValue('--red-1').trim()   || '#f87171';
     const acc1  = css.getPropertyValue('--accent-1').trim() || '#4f46e5';
 
-    const pts = rows.map((r, i) => [x(i), y(r.centsKWh)]);
-    const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-    const area = line + ` L${pts[n-1][0].toFixed(1)},${(padT+chartH).toFixed(1)} L${pts[0][0].toFixed(1)},${(padT+chartH).toFixed(1)} Z`;
+    // Absolute min/max (for the "crown" and "siren" accents)
+    let minIdx = 0, maxIdx = 0;
+    rows.forEach((r, i) => { if (r.centsKWh < rows[minIdx].centsKWh) minIdx = i; if (r.centsKWh > rows[maxIdx].centsKWh) maxIdx = i; });
 
-    // Y grid
-    let grid = '';
-    for (let i = 0; i <= 4; i++) {
-      const v = yMin + (yMax - yMin) * (i / 4);
+    // Hourly gridlines (subtle vertical separators at each full hour)
+    let hourGrid = '';
+    rows.forEach((r, i) => {
+      const m = r.start.getMinutes();
+      if (m === 0 && i > 0) {
+        const xh = padL + i * (barW + gap) - gap/2;
+        const hrs = Number(timeFmt.format(r.start).split(':')[0]);
+        if ([0, 6, 12, 18].includes(hrs)) {
+          hourGrid += `<line x1="${xh}" x2="${xh}" y1="${padT}" y2="${padT+chartH}" stroke="${muted}" stroke-opacity="0.08"/>`;
+        }
+      }
+    });
+
+    // Y gridlines (3 horizontal rules)
+    let yGrid = '';
+    for (let i = 0; i <= 3; i++) {
+      const v = yMin + (yMax - yMin) * (i / 3);
       const yy = y(v);
-      grid += `<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="${muted}" stroke-opacity="0.12"/>`;
-      grid += `<text x="${padL - 8}" y="${yy + 3}" font-size="10" fill="${muted}" text-anchor="end" font-weight="500">${v.toFixed(1)}</text>`;
+      yGrid += `<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="${muted}" stroke-opacity="0.10"/>`;
+      yGrid += `<text x="${padL - 6}" y="${yy + 3}" font-size="9.5" fill="${muted}" text-anchor="end" font-weight="600" letter-spacing="0.03em">${v.toFixed(0)}</text>`;
     }
 
     // Average line
     const ay = y(avg);
     const avgLine = `
-      <line x1="${padL}" x2="${W-padR}" y1="${ay}" y2="${ay}" stroke="${muted}" stroke-opacity="0.35" stroke-dasharray="2 4"/>
-      <text x="${W-padR-4}" y="${ay - 4}" font-size="9" fill="${muted}" text-anchor="end" font-weight="600">AVG ${avg.toFixed(1)}</text>
+      <line x1="${padL}" x2="${W-padR}" y1="${ay}" y2="${ay}" stroke="${muted}" stroke-opacity="0.45" stroke-dasharray="2 3"/>
+      <g transform="translate(${W-padR-2}, ${ay})">
+        <rect x="-34" y="-8" width="34" height="14" rx="3" fill="var(--bg-1)" opacity="0.85"/>
+        <text x="-3" y="2" font-size="9" fill="${muted}" text-anchor="end" font-weight="700" letter-spacing="0.05em">AVG ${avg.toFixed(1)}</text>
+      </g>
     `;
 
-    // X ticks
+    // X ticks — show 00 / 06 / 12 / 18 at hourly boundaries
     let xlabels = '';
-    const step = Math.max(1, Math.round(n / 6));
-    for (let i = 0; i < n; i += step) {
-      xlabels += `<text x="${x(i)}" y="${H-8}" font-size="10" fill="${muted}" text-anchor="middle" font-weight="500">${fmtTime(rows[i].start)}</text>`;
-    }
+    rows.forEach((r, i) => {
+      const parts = timeFmt.format(r.start).split(':');
+      const hr = Number(parts[0]);
+      const mn = Number(parts[1]);
+      if (mn === 0 && [0, 6, 12, 18].includes(hr)) {
+        const cx = padL + i * (barW + gap) + barW/2;
+        xlabels += `<text x="${cx}" y="${H-10}" font-size="10" fill="${muted}" text-anchor="middle" font-weight="600" letter-spacing="0.05em">${parts[0]}:00</text>`;
+      }
+    });
 
-    // Now line (today only)
+    // Bars
+    let bars = '';
+    rows.forEach((r, i) => {
+      const k = +r.start;
+      const isCheap = cheapest.has(k);
+      const isPricy = priciest.has(k);
+      const bx = padL + i * (barW + gap);
+      const by = y(r.centsKWh);
+      const bh = Math.max(1, padT + chartH - by);
+      let fill;
+      let extra = '';
+      if (isCheap) {
+        fill = 'url(#barCheap)';
+        extra = `filter="url(#glowGreen)"`;
+      } else if (isPricy) {
+        fill = 'url(#barPricy)';
+        extra = `filter="url(#glowRed)"`;
+      } else {
+        // Normal: colour by relative price using a subtle purple-to-amber hue.
+        const t = (r.centsKWh - lo) / Math.max(0.0001, hi - lo);
+        fill = `url(#barNormal${Math.round(t * 100)})`;
+      }
+      const rx = Math.min(barW/2, 1.8);
+      bars += `<rect x="${bx.toFixed(2)}" y="${by.toFixed(2)}" width="${barW.toFixed(2)}" height="${bh.toFixed(2)}" rx="${rx}" fill="${fill}" ${extra}/>`;
+    });
+
+    // Marker badges above cheapest/priciest (tiny pills)
+    let badges = '';
+    rows.forEach((r, i) => {
+      const k = +r.start;
+      const bx = padL + i * (barW + gap) + barW/2;
+      const by = y(r.centsKWh);
+      if (cheapest.has(k)) {
+        const isCrown = i === minIdx;
+        const color = isCrown ? '#fcd34d' : '#34d399';
+        const glow = isCrown ? '#facc15' : '#34d399';
+        badges += `
+          <g transform="translate(${bx.toFixed(2)}, ${(by - 10).toFixed(2)})">
+            <circle r="5" fill="${color}" style="filter: drop-shadow(0 0 6px ${glow})"/>
+            <circle r="2" fill="white" opacity="0.85"/>
+          </g>`;
+      } else if (priciest.has(k)) {
+        const isSiren = i === maxIdx;
+        const color = isSiren ? '#fb923c' : '#f87171';
+        const glow = isSiren ? '#f97316' : '#f87171';
+        badges += `
+          <g transform="translate(${bx.toFixed(2)}, ${(by - 10).toFixed(2)})">
+            <circle r="5" fill="${color}" style="filter: drop-shadow(0 0 6px ${glow})"/>
+            <circle r="2" fill="white" opacity="0.85"/>
+          </g>`;
+      }
+    });
+
+    // Crown icon above absolute cheapest
+    const crownX = padL + minIdx * (barW + gap) + barW/2;
+    const crownY = y(rows[minIdx].centsKWh);
+    const crown = `
+      <g transform="translate(${crownX.toFixed(2)}, ${(crownY - 22).toFixed(2)})">
+        <text text-anchor="middle" font-size="14">👑</text>
+      </g>`;
+
+    // Flame above absolute priciest
+    const flameX = padL + maxIdx * (barW + gap) + barW/2;
+    const flameY = y(rows[maxIdx].centsKWh);
+    const flame = `
+      <g transform="translate(${flameX.toFixed(2)}, ${(flameY - 22).toFixed(2)})">
+        <text text-anchor="middle" font-size="13">🔥</text>
+      </g>`;
+
+    // Now indicator (today only)
     let nowLine = '';
     if (state.selected === 'today') {
       const now = new Date();
@@ -450,68 +547,116 @@
       if (t >= 0 && t <= 1) {
         const xn = padL + t * chartW;
         nowLine = `
-          <line x1="${xn}" x2="${xn}" y1="${padT}" y2="${padT+chartH}" stroke="${text}" stroke-opacity="0.4" stroke-dasharray="3 3"/>
-          <circle cx="${xn}" cy="${padT+4}" r="4" fill="${acc1}">
-            <animate attributeName="r" values="3.5;6;3.5" dur="2s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
-          </circle>
-        `;
+          <line x1="${xn}" x2="${xn}" y1="${padT-6}" y2="${padT+chartH}" stroke="${acc1}" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="2 3"/>
+          <g transform="translate(${xn}, ${padT - 8})">
+            <circle r="4.5" fill="${acc1}">
+              <animate attributeName="r" values="3.5;6;3.5" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <circle r="2" fill="white"/>
+          </g>`;
       }
     }
 
-    // Markers for cheapest/priciest
-    let marks = '';
-    rows.forEach((r, i) => {
-      const k = +r.start;
-      if (cheapest.has(k)) marks += `<circle cx="${x(i)}" cy="${y(r.centsKWh)}" r="5" fill="${green}" stroke="white" stroke-width="1.5" style="filter: drop-shadow(0 0 6px ${green})"/>`;
-      else if (priciest.has(k)) marks += `<circle cx="${x(i)}" cy="${y(r.centsKWh)}" r="5" fill="${red}" stroke="white" stroke-width="1.5" style="filter: drop-shadow(0 0 6px ${red})"/>`;
-    });
+    // Build gradient defs. Normal bars get precomputed hue stops.
+    let normalDefs = '';
+    for (let i = 0; i <= 100; i += 5) {
+      const t = i / 100;
+      // HSL ramp: teal (190) → indigo (255) → magenta (310) → rose (355)
+      const hue = 190 + t * 165;
+      const sat = 68, bri = 62;
+      normalDefs += `
+        <linearGradient id="barNormal${i}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="hsl(${hue}, ${sat}%, ${bri}%)" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="hsl(${hue}, ${sat}%, ${bri-10}%)" stop-opacity="0.45"/>
+        </linearGradient>`;
+    }
+    // Round to nearest 5 for lookups (above loop emits 0, 5, …, 100; renderer uses Math.round(t*100) so fall back)
+    // Fill any remaining 1..99 that aren't multiples of 5 via fallback of nearest 5.
+    for (let i = 0; i <= 100; i++) {
+      if (i % 5 === 0) continue;
+      const nearest = Math.round(i / 5) * 5;
+      normalDefs += `<linearGradient id="barNormal${i}" href="#barNormal${nearest}"/>`;
+    }
 
     svg.innerHTML = `
       <defs>
-        <linearGradient id="chartArea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stop-color="${acc1}" stop-opacity="0.5"/>
-          <stop offset="100%" stop-color="${acc1}" stop-opacity="0.02"/>
+        <linearGradient id="barCheap" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#34d399" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0.55"/>
         </linearGradient>
-        <linearGradient id="chartLine" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stop-color="#4f46e5"/>
-          <stop offset="50%"  stop-color="#7c3aed"/>
-          <stop offset="100%" stop-color="#06b6d4"/>
+        <linearGradient id="barPricy" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#fb7185" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#ef4444" stop-opacity="0.55"/>
         </linearGradient>
+        <filter id="glowGreen" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="glowRed" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        ${normalDefs}
       </defs>
-      ${grid}
+      ${yGrid}
+      ${hourGrid}
       ${avgLine}
-      <path d="${area}" fill="url(#chartArea)"/>
-      <path d="${line}" fill="none" stroke="url(#chartLine)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${bars}
       ${nowLine}
-      ${marks}
+      ${badges}
+      ${crown}
+      ${flame}
       ${xlabels}
     `;
   }
 
-  // ------------------------------ Price list
+  // ------------------------------ Price list (compact 4-col grid)
 
   function renderList(rows, lo, hi, cheapest, priciest, currentRow) {
     const list = $('list');
     const range = Math.max(0.0001, hi - lo);
-    const frag = document.createDocumentFragment();
 
-    for (const r of rows) {
-      const row = document.createElement('div');
-      const isNow = currentRow && +r.start === +currentRow.start;
-      const isCheap = cheapest.has(+r.start);
-      const isPricy = priciest.has(+r.start);
-      row.className = 'row' + (isCheap ? ' cheap' : '') + (isPricy ? ' pricy' : '') + (isNow ? ' now' : '');
-      const pct = Math.max(5, ((r.centsKWh - lo) / range) * 100);
-      const color = isCheap ? 'var(--green-1)' : isPricy ? 'var(--red-1)' : 'var(--accent-1)';
-      row.innerHTML = `
-        <div class="row-accent"></div>
-        <div class="row-time">${fmtTime(r.start)}${isNow ? '<span class="nowtag">NOW</span>' : ''}</div>
-        <div class="row-bar"><span style="width:${pct}%;background:${color}"></span></div>
-        <div class="row-price">${fmt2(r.centsKWh)}<span class="cents">¢</span></div>
+    // Find absolute min/max indices in the data for crown/flame decoration.
+    let minIdx = 0, maxIdx = 0;
+    rows.forEach((r, i) => {
+      if (r.centsKWh < rows[minIdx].centsKWh) minIdx = i;
+      if (r.centsKWh > rows[maxIdx].centsKWh) maxIdx = i;
+    });
+
+    const frag = document.createDocumentFragment();
+    rows.forEach((r, i) => {
+      const k = +r.start;
+      const cell = document.createElement('div');
+      const isNow = currentRow && k === +currentRow.start;
+      const isCheap = cheapest.has(k);
+      const isPricy = priciest.has(k);
+      const isCrown = i === minIdx;
+      const isFlame = i === maxIdx;
+
+      cell.className = 'cell'
+        + (isCheap ? ' cheap' : '')
+        + (isPricy ? ' pricy' : '')
+        + (isNow ? ' now' : '')
+        + (isCrown ? ' crown' : '')
+        + (isFlame ? ' flame' : '');
+
+      const pct = Math.max(6, ((r.centsKWh - lo) / range) * 100);
+      const badge =
+        isCrown ? '<span class="cell-badge">👑</span>' :
+        isFlame ? '<span class="cell-badge">🔥</span>' :
+        isCheap ? '<span class="cell-badge leaf">🌿</span>' :
+        isPricy ? '<span class="cell-badge fire">🔺</span>' :
+        isNow   ? '<span class="cell-badge now">●</span>' : '';
+
+      cell.innerHTML = `
+        ${badge}
+        <div class="cell-time">${fmtTime(r.start)}</div>
+        <div class="cell-price">${fmt2(r.centsKWh)}<span class="cell-unit">¢</span></div>
+        <div class="cell-bar"><span style="width:${pct}%"></span></div>
       `;
-      frag.appendChild(row);
-    }
+      frag.appendChild(cell);
+    });
     list.innerHTML = '';
     list.appendChild(frag);
   }
@@ -587,6 +732,13 @@
   setInterval(() => {
     if (state.today.length && state.selected === 'today') render();
   }, 60 * 1000);
+
+  // Re-render on resize / orientation change so bar widths recompute
+  let resizeT;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => { if (state.today.length || state.tomorrow.length) render(); }, 150);
+  });
 
   updateSegThumb();
   load();
