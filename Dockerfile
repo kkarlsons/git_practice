@@ -21,4 +21,5 @@ RUN pip install --upgrade pip && pip install -r backend/requirements.txt
 COPY backend backend
 
 EXPOSE 8000
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Clear any half-written r5py MapDB cache from a prior crash before starting.
+CMD ["sh", "-c", "rm -rf /root/.cache/r5py && exec uvicorn backend.app:app --host 0.0.0.0 --port 8000"]
