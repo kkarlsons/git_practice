@@ -1,6 +1,5 @@
 (() => {
   const CSV_URL = 'https://nordpool.didnt.work/nordpool-lv.csv';
-  // CORS fallbacks in case the feed doesn't set Access-Control-Allow-Origin.
   const SOURCES = [
     { name: 'direct',     url: CSV_URL },
     { name: 'corsproxy',  url: `https://corsproxy.io/?${encodeURIComponent(CSV_URL)}` },
@@ -9,16 +8,12 @@
     { name: 'thingproxy', url: `https://thingproxy.freeboard.io/fetch/${CSV_URL}` },
   ];
   const TZ = 'Europe/Riga';
+  const PER_SOURCE_TIMEOUT_MS = 8000;
 
   const $ = id => document.getElementById(id);
-  const state = {
-    selected: 'today',
-    today: [], tomorrow: [],
-    updatedAt: null,
-    diag: [], // {source, status, bytes, preview, ok}
-  };
+  const state = { selected: 'today', today: [], tomorrow: [], updatedAt: null, diag: [] };
 
-  // -------- Networking --------
+  // ------------------------------ Networking
 
   function looksLikeCSV(text) {
     if (!text || text.length < 50) return false;
@@ -28,8 +23,6 @@
     if (lines.length < 3) return false;
     return /[;,\t]/.test(lines[0]);
   }
-
-  const PER_SOURCE_TIMEOUT_MS = 8000;
 
   async function tryFetch(src) {
     const entry = { source: src.name, url: src.url, status: '-', bytes: 0, preview: '', ok: false, error: null };
@@ -47,22 +40,17 @@
       entry.bytes = text.length;
       entry.preview = text.slice(0, 180).replace(/\s+/g, ' ').trim();
       if (!res.ok) { entry.error = `HTTP ${res.status}`; return entry; }
-      if (!looksLikeCSV(text)) { entry.error = 'Response did not look like CSV'; return entry; }
+      if (!looksLikeCSV(text)) { entry.error = 'Did not look like CSV'; return entry; }
       entry.ok = true;
       entry.text = text;
       return entry;
     } catch (e) {
       entry.error = (e.name === 'AbortError') ? `timeout after ${PER_SOURCE_TIMEOUT_MS/1000}s` : (e.message || String(e));
       return entry;
-    } finally {
-      clearTimeout(timer);
-    }
+    } finally { clearTimeout(timer); }
   }
 
-  function setLoadingMsg(msg) {
-    const el = $('loading-msg');
-    if (el) el.textContent = msg;
-  }
+  function setLoadingMsg(m) { const el = $('loading-msg'); if (el) el.textContent = m; }
 
   async function fetchCSV() {
     state.diag = [];
@@ -77,21 +65,21 @@
     throw new Error(`All sources failed.\n${msg}`);
   }
 
-  // -------- CSV parsing --------
+  // ------------------------------ CSV parsing with auto-unit-detection
 
   function parseCSV(text) {
     const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     if (lines.length < 2) throw new Error('CSV is empty');
     const delim = detectDelim(lines[0]);
-    const header = splitLine(lines[0], delim).map(h => normalize(h));
+    const header = splitLine(lines[0], delim).map(normalize);
 
     const startIdx = findCol(header, ['start','begin','from','deliverystart','timestamp','datetime','time','date']);
     const endIdx   = findCol(header, ['end','to','deliveryend']);
-    const priceIdx = findCol(header, ['price','value','eurmwh','eur','cost']);
-
+    const priceIdx = findCol(header, ['price','value','eurmwh','eurkwh','eur','cost','centkwh']);
     if (startIdx < 0 || priceIdx < 0) throw new Error("Couldn't find time/price columns in CSV");
 
-    const rows = [];
+    // Parse raw rows first (keep native unit).
+    const raw = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = splitLine(lines[i], delim);
       if (cols.length <= Math.max(startIdx, priceIdx)) continue;
@@ -100,15 +88,38 @@
       if (!start || Number.isNaN(price)) continue;
       const end = (endIdx >= 0 && cols[endIdx]) ? (parseDate(cols[endIdx]) || new Date(start.getTime() + 15*60*1000))
                                                 : new Date(start.getTime() + 15*60*1000);
-      rows.push({ start, end, eurMWh: price, centsKWh: price / 10 });
+      raw.push({ start, end, native: price });
     }
-    rows.sort((a, b) => a.start - b.start);
-    return rows;
+    if (!raw.length) throw new Error('No rows parsed');
+
+    // Determine multiplier to get ¢/kWh.
+    const headerText = header[priceIdx] || '';
+    const unit = detectUnit(headerText, raw);
+    for (const r of raw) r.centsKWh = r.native * unit.mul;
+
+    raw.sort((a, b) => a.start - b.start);
+    return raw;
   }
 
-  function normalize(s) {
-    return s.toLowerCase().replace(/["_\-\s/]/g, '');
+  /** Detect unit from header hints + magnitude heuristic. Returns { mul, label }. */
+  function detectUnit(header, rows) {
+    // Header hints
+    if (/centkwh|ckwh|cent_?per_?kwh/.test(header)) return { mul: 1,   label: '¢/kWh' };
+    if (/eur.*mwh|mwh/.test(header))                return { mul: 0.1, label: 'EUR/MWh → ¢/kWh' };
+    if (/eur.*kwh|kwh/.test(header))                return { mul: 100, label: 'EUR/kWh → ¢/kWh' };
+
+    // Magnitude heuristic on median of |value|
+    const abs = rows.map(r => Math.abs(r.native)).filter(v => v > 0).sort((a,b) => a-b);
+    if (!abs.length) return { mul: 1, label: '¢/kWh' };
+    const median = abs[Math.floor(abs.length / 2)];
+    // Typical consumer prices: 2–30 ¢/kWh
+    if (median >= 2 && median <= 60)   return { mul: 1,   label: '¢/kWh' };
+    if (median > 60)                   return { mul: 0.1, label: 'EUR/MWh → ¢/kWh' };
+    // median < 2 → likely EUR/kWh (0.02–0.30)
+    return { mul: 100, label: 'EUR/kWh → ¢/kWh' };
   }
+
+  function normalize(s) { return s.toLowerCase().replace(/["_\-\s/]/g, ''); }
   function findCol(header, needles) {
     for (const n of needles) {
       const i = header.findIndex(h => h.includes(n));
@@ -117,9 +128,7 @@
     return -1;
   }
   function detectDelim(line) {
-    const s = (line.match(/;/g)||[]).length;
-    const c = (line.match(/,/g)||[]).length;
-    const t = (line.match(/\t/g)||[]).length;
+    const s = (line.match(/;/g)||[]).length, c = (line.match(/,/g)||[]).length, t = (line.match(/\t/g)||[]).length;
     if (t > s && t > c) return '\t';
     return s > c ? ';' : ',';
   }
@@ -130,8 +139,7 @@
       if (ch === delim && !q) { out.push(cur.trim()); cur = ''; }
       else cur += ch;
     }
-    out.push(cur.trim());
-    return out;
+    out.push(cur.trim()); return out;
   }
   function parseNum(raw) {
     if (raw == null) return NaN;
@@ -150,17 +158,14 @@
     return null;
   }
 
-  // -------- Day bucketing in Europe/Riga --------
+  // ------------------------------ Day bucketing (Europe/Riga)
 
-  function rigaYMD(date) {
-    // returns "YYYY-MM-DD" for the given instant, in Europe/Riga.
-    const f = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' });
-    return f.format(date); // en-CA gives YYYY-MM-DD
-  }
+  const ymdFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' });
+  const rigaYMD = d => ymdFmt.format(d);
   function bucket(rows) {
-    const today = rigaYMD(new Date());
+    const today    = rigaYMD(new Date());
     const tomorrow = rigaYMD(new Date(Date.now() + 24*60*60*1000));
-    const t = []; const tm = [];
+    const t = [], tm = [];
     for (const r of rows) {
       const d = rigaYMD(r.start);
       if (d === today) t.push(r);
@@ -169,188 +174,370 @@
     return { today: t, tomorrow: tm };
   }
 
-  // -------- Formatting --------
+  // ------------------------------ Formatting
 
   const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
-  const updFmt  = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
   const fmtTime = d => timeFmt.format(d);
-  const fmt2 = n => n.toFixed(2);
+  const fmt2 = n => (n == null || Number.isNaN(n)) ? '—' : n.toFixed(2);
 
-  // -------- Colour scale --------
+  // ------------------------------ Segmented control thumb
 
-  function priceColor(value, lo, hi) {
-    if (hi <= lo) return getCSSVar('--accent');
-    const t = Math.max(0, Math.min(1, (value - lo) / (hi - lo)));
-    // hue 130 (green) → 45 (amber) → 0 (red)
-    const hue = 130 - 130 * t;
-    return `hsl(${hue}, 65%, 45%)`;
-  }
-  function getCSSVar(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#2775e0';
+  function updateSegThumb() {
+    const thumb = $('seg-thumb');
+    if (!thumb) return;
+    thumb.classList.toggle('right', state.selected === 'tomorrow');
   }
 
-  // -------- Rendering --------
+  // ------------------------------ Rendering
 
   function render() {
     const rows = state.selected === 'today' ? state.today : state.tomorrow;
-    const list = $('list');
-    const chart = $('chart');
     const content = $('content');
 
     if (!rows.length) {
       content.classList.remove('hidden');
-      $('hero-label').textContent = state.selected === 'tomorrow' ? 'Not published yet' : 'No data';
-      $('hero-value').textContent = '—';
+      setPill('normal', state.selected === 'tomorrow' ? 'NOT PUBLISHED' : 'NO DATA');
+      $('hero-label').textContent = state.selected === 'tomorrow' ? 'Tomorrow' : 'Today';
+      setHeroValue('—', null);
       $('hero-sub').textContent = state.selected === 'tomorrow'
-        ? 'Nordpool usually publishes tomorrow around 14:00 Riga time.'
-        : 'Pull down or tap refresh to retry.';
+        ? 'Usually published around 14:00 Riga'
+        : 'Tap refresh to retry';
+      $('hero-delta').textContent = '';
+      $('hero-delta').className = 'hero-delta';
+      $('hero-spark').innerHTML = '';
+      $('insight').classList.add('hidden');
       $('stat-lo').textContent = '—'; $('stat-lo-sub').textContent = '';
       $('stat-hi').textContent = '—'; $('stat-hi-sub').textContent = '';
-      chart.innerHTML = '';
-      list.innerHTML = '';
+      $('chart').innerHTML = '';
+      $('list').innerHTML = '';
+      $('slot-count').textContent = '';
       return;
     }
 
     const prices = rows.map(r => r.centsKWh);
     const lo = Math.min(...prices);
     const hi = Math.max(...prices);
+    const avg = prices.reduce((a,b) => a + b, 0) / prices.length;
     const loIdx = prices.indexOf(lo);
     const hiIdx = prices.indexOf(hi);
 
-    const cheapest = new Set([...rows].sort((a,b) => a.centsKWh - b.centsKWh).slice(0, 4).map(r => +r.start));
-    const priciest = new Set([...rows].sort((a,b) => b.centsKWh - a.centsKWh).slice(0, 4).map(r => +r.start));
+    const cheapestSorted = [...rows].sort((a,b) => a.centsKWh - b.centsKWh);
+    const priciestSorted = [...rows].sort((a,b) => b.centsKWh - a.centsKWh);
+    const cheapest = new Set(cheapestSorted.slice(0, 4).map(r => +r.start));
+    const priciest = new Set(priciestSorted.slice(0, 4).map(r => +r.start));
 
-    // Hero
     const now = new Date();
     const currentRow = state.selected === 'today'
       ? rows.find(r => r.start <= now && now < r.end)
       : null;
+
+    // ---- Hero ----
     if (currentRow) {
+      const key = +currentRow.start;
+      const isCheap = cheapest.has(key);
+      const isPricy = priciest.has(key);
+      const variant = isCheap ? 'cheap' : isPricy ? 'pricy' : 'normal';
+      const label = isCheap ? '🌿 CHEAP NOW' : isPricy ? '🔥 EXPENSIVE NOW' : '⚡ NORMAL';
+
+      setPill(variant, label);
       $('hero-label').textContent = 'Right now';
-      $('hero-value').textContent = fmt2(currentRow.centsKWh);
-      $('hero-value').style.color = priceColor(currentRow.centsKWh, lo, hi);
+      setHeroValue(fmt2(currentRow.centsKWh), variant);
       $('hero-sub').textContent = `${fmtTime(currentRow.start)}–${fmtTime(currentRow.end)}`;
+
+      const deltaPct = ((currentRow.centsKWh - avg) / avg) * 100;
+      const deltaEl = $('hero-delta');
+      deltaEl.textContent = (deltaPct >= 0 ? '+' : '') + deltaPct.toFixed(0) + '% vs day avg';
+      deltaEl.className = 'hero-delta ' + (deltaPct < -5 ? 'good' : deltaPct > 5 ? 'bad' : '');
     } else {
-      const avg = prices.reduce((a,b)=>a+b,0) / prices.length;
-      $('hero-label').textContent = state.selected === 'tomorrow' ? 'Tomorrow · average' : 'Average';
-      $('hero-value').textContent = fmt2(avg);
-      $('hero-value').style.color = '';
-      $('hero-sub').textContent = '';
-    }
-    $('stat-lo').textContent = `${fmt2(lo)} ¢`;
-    $('stat-lo-sub').textContent = fmtTime(rows[loIdx].start);
-    $('stat-hi').textContent = `${fmt2(hi)} ¢`;
-    $('stat-hi-sub').textContent = fmtTime(rows[hiIdx].start);
-
-    // Chart
-    drawChart(rows, lo, hi, cheapest, priciest);
-
-    // List
-    list.innerHTML = '';
-    const range = Math.max(0.0001, hi - lo);
-    for (const r of rows) {
-      const row = document.createElement('div');
-      const isNow = currentRow && +r.start === +currentRow.start;
-      const isCheap = cheapest.has(+r.start);
-      const isPricy = priciest.has(+r.start);
-      row.className = 'row' + (isCheap ? ' cheap' : '') + (isPricy ? ' pricy' : '') + (isNow ? ' now' : '');
-      const badgeCls = isCheap ? 'c' : isPricy ? 'p' : 'n';
-      const badgeSym = isCheap ? '🌿' : isPricy ? '🔥' : '•';
-      const pct = Math.max(4, ((r.centsKWh - lo) / range) * 100);
-      const color = priceColor(r.centsKWh, lo, hi);
-      row.innerHTML = `
-        <div class="badge ${badgeCls}">${badgeSym}</div>
-        <div class="time">${fmtTime(r.start)}–${fmtTime(r.end)}${isNow ? '<span class="nowtag">NOW</span>' : ''}</div>
-        <div class="bar"><span style="width:${pct}%;background:${color}"></span></div>
-        <div class="price" style="color:${color}">${fmt2(r.centsKWh)}</div>
-      `;
-      list.appendChild(row);
+      setPill('normal', state.selected === 'tomorrow' ? 'TOMORROW' : 'AVERAGE');
+      $('hero-label').textContent = state.selected === 'tomorrow' ? 'Tomorrow · avg' : 'Day average';
+      setHeroValue(fmt2(avg), 'normal');
+      $('hero-sub').textContent = `${fmtTime(rows[0].start)}–${fmtTime(rows[rows.length-1].end)}`;
+      $('hero-delta').textContent = `range ${fmt2(lo)} – ${fmt2(hi)}`;
+      $('hero-delta').className = 'hero-delta';
     }
 
-    // Updated
+    drawSparkline(rows, lo, hi, currentRow);
+
+    // ---- Insight ----
+    renderInsight(rows, lo, hi, currentRow, cheapest, priciest, avg);
+
+    // ---- Stats ----
+    $('stat-lo').innerHTML = `${fmt2(lo)}<span class="cents"> ¢</span>`;
+    $('stat-lo-sub').textContent = `at ${fmtTime(rows[loIdx].start)}`;
+    $('stat-hi').innerHTML = `${fmt2(hi)}<span class="cents"> ¢</span>`;
+    $('stat-hi-sub').textContent = `at ${fmtTime(rows[hiIdx].start)}`;
+
+    // ---- Chart ----
+    drawChart(rows, lo, hi, avg, cheapest, priciest);
+
+    // ---- List ----
+    renderList(rows, lo, hi, cheapest, priciest, currentRow);
+
+    // ---- Slot count ----
+    $('slot-count').textContent = `${rows.length} slots`;
+
+    // ---- Updated ----
     $('updated').textContent = state.updatedAt
-      ? `Updated ${updFmt.format(state.updatedAt)} · source: nordpool.didnt.work`
+      ? `Updated ${fmtTime(state.updatedAt)} · source: nordpool.didnt.work`
       : '';
+
     content.classList.remove('hidden');
   }
 
-  function drawChart(rows, lo, hi, cheapest, priciest) {
-    const svg = $('chart');
-    const W = 600, H = 240, padL = 32, padR = 10, padT = 10, padB = 22;
+  function setPill(variant, text) {
+    const p = $('hero-pill');
+    p.className = 'pill ' + variant;
+    p.textContent = text;
+  }
+  function setHeroValue(text, variant) {
+    const v = $('hero-value');
+    v.textContent = text;
+    v.className = 'hero-value' + (variant ? ' ' + variant : '');
+  }
+
+  // ------------------------------ Insight generation
+
+  function renderInsight(rows, lo, hi, currentRow, cheapest, priciest, avg) {
+    const box = $('insight');
+    const now = new Date();
+    const isToday = state.selected === 'today';
+
+    let icon = '💡', title = '', sub = '';
+
+    if (isToday && currentRow) {
+      const key = +currentRow.start;
+      if (cheapest.has(key)) {
+        icon = '🌿';
+        title = 'You\'re in one of the 4 cheapest slots';
+        const nextPricy = rows.find(r => r.start > now && priciest.has(+r.start));
+        sub = nextPricy
+          ? `Next expensive slot at ${fmtTime(nextPricy.start)} · ${fmt2(nextPricy.centsKWh)} ¢`
+          : `Slot ends at ${fmtTime(currentRow.end)}`;
+      } else if (priciest.has(key)) {
+        icon = '🔥';
+        title = 'One of the 4 priciest slots right now';
+        const nextCheap = rows.find(r => r.start > now && cheapest.has(+r.start));
+        sub = nextCheap
+          ? `Wait until ${fmtTime(nextCheap.start)} for ${fmt2(nextCheap.centsKWh)} ¢ · save ${Math.round(((currentRow.centsKWh - nextCheap.centsKWh)/currentRow.centsKWh)*100)}%`
+          : 'No cheap slots left today';
+      } else {
+        // Normal — point to next cheap slot ahead
+        const nextCheap = rows.find(r => r.start > now && cheapest.has(+r.start));
+        if (nextCheap) {
+          icon = '⏱️';
+          const mins = Math.round((nextCheap.start - now) / 60000);
+          const when = mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins/60)}h ${mins%60}m`;
+          title = `Cheapest slot coming ${when}`;
+          sub = `${fmtTime(nextCheap.start)} · ${fmt2(nextCheap.centsKWh)} ¢/kWh`;
+        } else {
+          icon = '🌙';
+          title = 'All cheap slots have passed';
+          sub = 'Come back tomorrow';
+        }
+      }
+    } else if (!isToday) {
+      // Tomorrow — show cheapest window
+      const cheapestRow = rows.reduce((a, b) => a.centsKWh <= b.centsKWh ? a : b);
+      icon = '🌅';
+      title = `Cheapest tomorrow at ${fmtTime(cheapestRow.start)}`;
+      sub = `${fmt2(cheapestRow.centsKWh)} ¢/kWh · plan big appliances then`;
+    } else {
+      box.classList.add('hidden');
+      return;
+    }
+
+    $('insight-icon').textContent = icon;
+    $('insight-title').textContent = title;
+    $('insight-sub').textContent = sub;
+    box.classList.remove('hidden');
+  }
+
+  // ------------------------------ Sparkline under hero
+
+  function drawSparkline(rows, lo, hi, currentRow) {
+    const svg = $('hero-spark');
+    const W = 340, H = 60, pad = 2;
     const n = rows.length;
-    const chartW = W - padL - padR;
-    const chartH = H - padT - padB;
-    const x = i => padL + (n <= 1 ? chartW/2 : (i * chartW) / (n - 1));
-    const yRange = Math.max(0.0001, hi - lo);
-    // Pad y with 10% headroom
-    const yMin = Math.min(lo, 0);
-    const yMax = hi + yRange * 0.1;
-    const y = v => padT + chartH - ((v - yMin) / (yMax - yMin)) * chartH;
+    const chartW = W - pad*2, chartH = H - pad*2;
+    const yMin = Math.min(lo, 0), yMax = hi + (hi - yMin) * 0.1;
+    const x = i => pad + (n <= 1 ? chartW/2 : (i * chartW) / (n - 1));
+    const y = v => pad + chartH - ((v - yMin) / (yMax - yMin || 1)) * chartH;
 
     const pts = rows.map((r, i) => [x(i), y(r.centsKWh)]);
-    const pathD = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-    const areaD = pathD + ` L${pts[pts.length-1][0].toFixed(1)},${(padT+chartH).toFixed(1)} L${pts[0][0].toFixed(1)},${(padT+chartH).toFixed(1)} Z`;
+    const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const area = line + ` L${pts[n-1][0].toFixed(1)},${(H-pad).toFixed(1)} L${pts[0][0].toFixed(1)},${(H-pad).toFixed(1)} Z`;
 
-    const accent = getCSSVar('--accent');
-    const text = getCSSVar('--text');
-    const muted = getCSSVar('--muted');
-    const green = getCSSVar('--green');
-    const red = getCSSVar('--red');
+    let nowDot = '';
+    if (currentRow) {
+      const i = rows.indexOf(currentRow);
+      if (i >= 0) {
+        nowDot = `<circle cx="${x(i)}" cy="${y(currentRow.centsKWh)}" r="4" fill="white"/>
+                  <circle cx="${x(i)}" cy="${y(currentRow.centsKWh)}" r="3" fill="#4f46e5"/>`;
+      }
+    }
 
-    // Y gridlines at 4 steps
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="sparkG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(124,58,237,0.55)"/>
+          <stop offset="100%" stop-color="rgba(124,58,237,0.02)"/>
+        </linearGradient>
+        <linearGradient id="sparkL" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#4f46e5"/>
+          <stop offset="50%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#06b6d4"/>
+        </linearGradient>
+      </defs>
+      <path d="${area}" fill="url(#sparkG)"/>
+      <path d="${line}" fill="none" stroke="url(#sparkL)" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+      ${nowDot}
+    `;
+  }
+
+  // ------------------------------ Main chart
+
+  function drawChart(rows, lo, hi, avg, cheapest, priciest) {
+    const svg = $('chart');
+    const W = 640, H = 260, padL = 38, padR = 14, padT = 18, padB = 28;
+    const n = rows.length;
+    const chartW = W - padL - padR, chartH = H - padT - padB;
+    const x = i => padL + (n <= 1 ? chartW/2 : (i * chartW) / (n - 1));
+    const yMin = Math.min(lo, 0);
+    const yMax = hi + (hi - yMin) * 0.15;
+    const y = v => padT + chartH - ((v - yMin) / (yMax - yMin || 1)) * chartH;
+
+    const css = getComputedStyle(document.documentElement);
+    const muted = css.getPropertyValue('--muted').trim() || '#8893a7';
+    const text  = css.getPropertyValue('--text').trim()  || '#f1f5f9';
+    const green = css.getPropertyValue('--green-1').trim() || '#34d399';
+    const red   = css.getPropertyValue('--red-1').trim()   || '#f87171';
+    const acc1  = css.getPropertyValue('--accent-1').trim() || '#4f46e5';
+
+    const pts = rows.map((r, i) => [x(i), y(r.centsKWh)]);
+    const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const area = line + ` L${pts[n-1][0].toFixed(1)},${(padT+chartH).toFixed(1)} L${pts[0][0].toFixed(1)},${(padT+chartH).toFixed(1)} Z`;
+
+    // Y grid
     let grid = '';
     for (let i = 0; i <= 4; i++) {
       const v = yMin + (yMax - yMin) * (i / 4);
       const yy = y(v);
-      grid += `<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="${muted}" stroke-opacity="0.15"/>`;
-      grid += `<text x="${padL - 6}" y="${yy + 3}" font-size="10" fill="${muted}" text-anchor="end">${v.toFixed(1)}</text>`;
+      grid += `<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="${muted}" stroke-opacity="0.12"/>`;
+      grid += `<text x="${padL - 8}" y="${yy + 3}" font-size="10" fill="${muted}" text-anchor="end" font-weight="500">${v.toFixed(1)}</text>`;
     }
 
-    // X labels every ~3 hours (12 slots of 15min)
+    // Average line
+    const ay = y(avg);
+    const avgLine = `
+      <line x1="${padL}" x2="${W-padR}" y1="${ay}" y2="${ay}" stroke="${muted}" stroke-opacity="0.35" stroke-dasharray="2 4"/>
+      <text x="${W-padR-4}" y="${ay - 4}" font-size="9" fill="${muted}" text-anchor="end" font-weight="600">AVG ${avg.toFixed(1)}</text>
+    `;
+
+    // X ticks
     let xlabels = '';
-    const step = Math.max(1, Math.round(n / 8));
+    const step = Math.max(1, Math.round(n / 6));
     for (let i = 0; i < n; i += step) {
-      xlabels += `<text x="${x(i)}" y="${H-6}" font-size="10" fill="${muted}" text-anchor="middle">${fmtTime(rows[i].start)}</text>`;
+      xlabels += `<text x="${x(i)}" y="${H-8}" font-size="10" fill="${muted}" text-anchor="middle" font-weight="500">${fmtTime(rows[i].start)}</text>`;
     }
 
-    // Now line (only for today)
+    // Now line (today only)
     let nowLine = '';
     if (state.selected === 'today') {
       const now = new Date();
-      const first = +rows[0].start;
-      const last  = +rows[rows.length-1].end;
+      const first = +rows[0].start, last = +rows[n-1].end;
       const t = (now - first) / (last - first);
       if (t >= 0 && t <= 1) {
         const xn = padL + t * chartW;
-        nowLine = `<line x1="${xn}" x2="${xn}" y1="${padT}" y2="${padT+chartH}" stroke="${text}" stroke-opacity="0.55" stroke-dasharray="4 3"/>`;
+        nowLine = `
+          <line x1="${xn}" x2="${xn}" y1="${padT}" y2="${padT+chartH}" stroke="${text}" stroke-opacity="0.4" stroke-dasharray="3 3"/>
+          <circle cx="${xn}" cy="${padT+4}" r="4" fill="${acc1}">
+            <animate attributeName="r" values="3.5;6;3.5" dur="2s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        `;
       }
     }
 
-    // Markers
+    // Markers for cheapest/priciest
     let marks = '';
     rows.forEach((r, i) => {
-      const key = +r.start;
-      if (cheapest.has(key)) marks += `<circle cx="${x(i)}" cy="${y(r.centsKWh)}" r="4.5" fill="${green}" stroke="white" stroke-width="1.5"/>`;
-      else if (priciest.has(key)) marks += `<circle cx="${x(i)}" cy="${y(r.centsKWh)}" r="4.5" fill="${red}" stroke="white" stroke-width="1.5"/>`;
+      const k = +r.start;
+      if (cheapest.has(k)) marks += `<circle cx="${x(i)}" cy="${y(r.centsKWh)}" r="5" fill="${green}" stroke="white" stroke-width="1.5" style="filter: drop-shadow(0 0 6px ${green})"/>`;
+      else if (priciest.has(k)) marks += `<circle cx="${x(i)}" cy="${y(r.centsKWh)}" r="5" fill="${red}" stroke="white" stroke-width="1.5" style="filter: drop-shadow(0 0 6px ${red})"/>`;
     });
 
     svg.innerHTML = `
       <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${accent}" stop-opacity="0.45"/>
-          <stop offset="100%" stop-color="${accent}" stop-opacity="0.02"/>
+        <linearGradient id="chartArea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="${acc1}" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="${acc1}" stop-opacity="0.02"/>
+        </linearGradient>
+        <linearGradient id="chartLine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stop-color="#4f46e5"/>
+          <stop offset="50%"  stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#06b6d4"/>
         </linearGradient>
       </defs>
       ${grid}
-      <path d="${areaD}" fill="url(#areaGrad)"/>
-      <path d="${pathD}" fill="none" stroke="${accent}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${avgLine}
+      <path d="${area}" fill="url(#chartArea)"/>
+      <path d="${line}" fill="none" stroke="url(#chartLine)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
       ${nowLine}
       ${marks}
       ${xlabels}
     `;
   }
 
-  // -------- Load / retry --------
+  // ------------------------------ Price list
+
+  function renderList(rows, lo, hi, cheapest, priciest, currentRow) {
+    const list = $('list');
+    const range = Math.max(0.0001, hi - lo);
+    const frag = document.createDocumentFragment();
+
+    for (const r of rows) {
+      const row = document.createElement('div');
+      const isNow = currentRow && +r.start === +currentRow.start;
+      const isCheap = cheapest.has(+r.start);
+      const isPricy = priciest.has(+r.start);
+      row.className = 'row' + (isCheap ? ' cheap' : '') + (isPricy ? ' pricy' : '') + (isNow ? ' now' : '');
+      const pct = Math.max(5, ((r.centsKWh - lo) / range) * 100);
+      const color = isCheap ? 'var(--green-1)' : isPricy ? 'var(--red-1)' : 'var(--accent-1)';
+      row.innerHTML = `
+        <div class="row-accent"></div>
+        <div class="row-time">${fmtTime(r.start)}${isNow ? '<span class="nowtag">NOW</span>' : ''}</div>
+        <div class="row-bar"><span style="width:${pct}%;background:${color}"></span></div>
+        <div class="row-price">${fmt2(r.centsKWh)}<span class="cents">¢</span></div>
+      `;
+      frag.appendChild(row);
+    }
+    list.innerHTML = '';
+    list.appendChild(frag);
+  }
+
+  // ------------------------------ Diagnostics
+
+  function renderDiagnostics() {
+    const box = $('diag');
+    if (!box) return;
+    if (!state.diag.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="diag-title">What happened</div>' + state.diag.map(d => `
+      <details class="diag-item">
+        <summary>
+          <span class="pill-mini ${d.ok ? 'ok' : 'bad'}">${d.source}</span>
+          <span class="diag-status">${d.ok ? `OK · ${d.bytes} bytes` : (d.error || 'failed')}</span>
+        </summary>
+        <div class="diag-body">
+          <div class="diag-url">${d.url}</div>
+          <pre>${escapeHTML(d.preview || '(empty)')}</pre>
+        </div>
+      </details>
+    `).join('');
+  }
+  function escapeHTML(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+
+  // ------------------------------ Load
 
   async function load() {
     $('refresh').classList.add('spinning');
@@ -378,22 +565,7 @@
     }
   }
 
-  function renderDiagnostics() {
-    const box = $('diag');
-    if (!box) return;
-    if (!state.diag.length) { box.innerHTML = ''; return; }
-    box.innerHTML = '<div class="diag-title">What happened</div>' + state.diag.map(d => `
-      <details class="diag-item">
-        <summary><span class="${d.ok ? 'pill ok' : 'pill bad'}">${d.source}</span>
-          <span class="diag-status">${d.ok ? `OK · ${d.bytes} bytes` : (d.error || 'failed')}</span>
-        </summary>
-        <div class="diag-body"><div class="diag-url">${d.url}</div><pre>${escapeHTML(d.preview || '(empty)')}</pre></div>
-      </details>
-    `).join('');
-  }
-  function escapeHTML(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-
-  // -------- UI wiring --------
+  // ------------------------------ Wiring
 
   document.querySelectorAll('.seg').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -401,6 +573,7 @@
       btn.classList.add('active');
       btn.setAttribute('aria-selected','true');
       state.selected = btn.dataset.day;
+      updateSegThumb();
       render();
     });
   });
@@ -410,5 +583,11 @@
     if (!document.hidden && state.updatedAt && Date.now() - state.updatedAt > 10*60*1000) load();
   });
 
+  // Re-render "now" every minute so the indicator moves
+  setInterval(() => {
+    if (state.today.length && state.selected === 'today') render();
+  }, 60 * 1000);
+
+  updateSegThumb();
   load();
 })();
