@@ -149,13 +149,41 @@
   function parseDate(raw) {
     if (!raw) return null;
     const s = String(raw).trim().replace(/^"|"$/g, '');
+
+    // Explicit TZ marker (Z or ±HH:MM) — use native parser directly.
+    if (/[Zz]|[+-]\d{2}:?\d{2}(?:$|[^\d])/.test(s)) {
+      const d = new Date(s);
+      if (!isNaN(d)) return d;
+    }
+
+    // Naive "YYYY-MM-DD HH:MM[:SS]" — treat as Riga local (Nordpool day-ahead
+    // publishes slots in local wall-clock time). Parsing as UTC would leak
+    // the last 3 evening slots into "tomorrow" in Riga TZ.
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) return rigaLocalToDate(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0));
+
     const d = new Date(s);
     if (!isNaN(d)) return d;
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0)));
+
     const epoch = Number(s);
     if (!Number.isNaN(epoch)) return new Date(epoch > 1e12 ? epoch : epoch * 1000);
     return null;
+  }
+
+  // Given Riga wall-clock components, return the correct UTC Date.
+  const _rigaPartsFmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+  function rigaLocalToDate(y, mo, d, h, mi, s) {
+    const guess = new Date(Date.UTC(y, mo-1, d, h, mi, s));
+    const parts = _rigaPartsFmt.formatToParts(guess).reduce((o, p) => (o[p.type] = p.value, o), {});
+    const rigaAsUTC = Date.UTC(+parts.year, +parts.month - 1, +parts.day,
+                               +parts.hour === 24 ? 0 : +parts.hour,
+                               +parts.minute, +parts.second);
+    const offset = rigaAsUTC - guess.getTime();
+    return new Date(guess.getTime() - offset);
   }
 
   // ------------------------------ Day bucketing (Europe/Riga)
@@ -694,15 +722,65 @@
   }
   function escapeHTML(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 
+  // ------------------------------ Cache (localStorage)
+
+  const CACHE_KEY = 'engycell.prices.v1';
+
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.rows)) return null;
+      const rows = parsed.rows.map(r => ({
+        start: new Date(r.s),
+        end: new Date(r.e),
+        centsKWh: r.p,
+        native: r.n,
+      })).filter(r => r.start && !isNaN(r.start));
+      return { fetchedAt: new Date(parsed.fetchedAt), rows };
+    } catch { return null; }
+  }
+
+  function saveCache(rows) {
+    try {
+      const payload = {
+        fetchedAt: Date.now(),
+        rows: rows.map(r => ({ s: +r.start, e: +r.end, p: r.centsKWh, n: r.native })),
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+    } catch {}
+  }
+
+  // Only refetch when the cache can't answer — saves the feed a lot of hits.
+  function shouldRefresh(cache) {
+    if (!cache) return true;
+    const ageMs = Date.now() - cache.fetchedAt;
+    if (ageMs > 8 * 60 * 60 * 1000) return true;
+    const { today, tomorrow } = bucket(cache.rows);
+    if (today.length === 0) return true;
+    if (tomorrow.length === 0) {
+      const rigaHour = Number(new Intl.DateTimeFormat('en-GB',
+        { timeZone: TZ, hour: '2-digit', hour12: false }).format(new Date()));
+      if (rigaHour >= 14 && ageMs > 15 * 60 * 1000) return true;
+    }
+    return false;
+  }
+
   // ------------------------------ Load
 
-  async function load() {
-    $('refresh').classList.add('spinning');
+  async function load(opts = {}) {
+    const { force = false, silent = false } = opts;
     $('error').classList.add('hidden');
-    if (!state.today.length && !state.tomorrow.length) {
-      $('loading').classList.remove('hidden');
-      $('content').classList.add('hidden');
+
+    if (!silent) {
+      $('refresh').classList.add('spinning');
+      if (!state.today.length && !state.tomorrow.length) {
+        $('loading').classList.remove('hidden');
+        $('content').classList.add('hidden');
+      }
     }
+
     try {
       const text = await fetchCSV();
       const rows = parseCSV(text);
@@ -710,15 +788,32 @@
       state.today = today;
       state.tomorrow = tomorrow;
       state.updatedAt = new Date();
+      saveCache(rows);
       render();
     } catch (e) {
-      $('error-msg').textContent = e.message || String(e);
-      renderDiagnostics();
-      $('error').classList.remove('hidden');
-      $('content').classList.add('hidden');
+      if (!silent) {
+        $('error-msg').textContent = e.message || String(e);
+        renderDiagnostics();
+        $('error').classList.remove('hidden');
+        $('content').classList.add('hidden');
+      }
     } finally {
       $('loading').classList.add('hidden');
       $('refresh').classList.remove('spinning');
+    }
+  }
+
+  async function init() {
+    const cache = loadCache();
+    if (cache && cache.rows.length) {
+      const { today, tomorrow } = bucket(cache.rows);
+      state.today = today;
+      state.tomorrow = tomorrow;
+      state.updatedAt = cache.fetchedAt;
+      render();
+    }
+    if (shouldRefresh(cache)) {
+      await load({ silent: !!(cache && cache.rows.length) });
     }
   }
 
@@ -734,10 +829,13 @@
       render();
     });
   });
-  $('refresh').addEventListener('click', load);
-  $('retry').addEventListener('click', load);
+  $('refresh').addEventListener('click', () => load({ force: true }));
+  $('retry').addEventListener('click', () => load({ force: true }));
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && state.updatedAt && Date.now() - state.updatedAt > 10*60*1000) load();
+    if (!document.hidden) {
+      const cache = loadCache();
+      if (shouldRefresh(cache)) load({ silent: true });
+    }
   });
 
   // Re-render "now" every minute so the indicator moves
@@ -753,5 +851,9 @@
   });
 
   updateSegThumb();
-  load();
+  init();
+
+  // Remove the launch-animation class after the entrance finishes so that
+  // subsequent renders don't replay the sweep.
+  setTimeout(() => document.body.classList.remove('app-entering'), 900);
 })();
