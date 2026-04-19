@@ -1,8 +1,8 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-pydantic==2.9.2
-r5py==0.1.2
-geopandas==1.0.1
-shapely==2.0.6
-numpy==2.1.1
-pandas==2.2.3
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+r5py>=0.1.2
+geopandas>=1.0
+shapely>=2.0
+numpy>=1.26
+pandas>=2.0

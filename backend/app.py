@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .riga import Grid, RIGA_BBOX, build_grid, origin_frame
 
 log = logging.getLogger("riga-heatmap")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 DATA_DIR = Path(os.environ.get("RIGA_DATA_DIR", Path(__file__).parent.parent / "data"))
 OSM_PATH = DATA_DIR / "latvia-latest.osm.pbf"
