@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Riga Transit Heatmap</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <aside id="panel">
+    <h1>Riga transit heatmap</h1>
+    <p class="hint">Click anywhere in Riga. A heatmap of public-transit travel time will load.</p>
+
+    <label>Grid resolution
+      <select id="grid-m">
+        <option value="200">200 m (fast)</option>
+        <option value="100" selected>100 m (default)</option>
+        <option value="50">50 m (slow)</option>
+        <option value="20">20 m (minutes)</option>
+      </select>
+    </label>
+
+    <label>Max trip
+      <select id="max-min">
+        <option value="30">30 min</option>
+        <option value="60" selected>60 min</option>
+        <option value="90">90 min</option>
+      </select>
+    </label>
+
+    <div id="status" class="status idle">Waiting for a click…</div>
+
+    <div class="legend">
+      <div class="legend-bar"></div>
+      <div class="legend-labels"><span>0</span><span id="legend-max">60 min</span></div>
+    </div>
+  </aside>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    (function loadMaps() {
+      const s = document.createElement("script");
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${window.APP_CONFIG.googleMapsKey}&callback=initMap&v=weekly`;
+      s.async = true;
+      document.head.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

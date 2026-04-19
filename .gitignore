@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Data is downloaded locally, don't commit.
+data/
+*.pbf
+*.osm
+*.osm.pbf
+r5-network.dat
+r5-network.dat.lock
+
+# Local overrides
+frontend/config.local.js
+
+.DS_Store
