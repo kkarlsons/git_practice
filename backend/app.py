@@ -96,7 +96,9 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
     origins = origin_frame(req.lat, req.lon)
     departure = req.departure or _next_weekday_morning()
 
-    computer = r5py.TravelTimeMatrixComputer(
+    # r5py 1.x API: TravelTimeMatrix is invoked directly and returns a
+    # DataFrame-like object with from_id, to_id, travel_time (minutes).
+    df = r5py.TravelTimeMatrix(
         net,
         origins=origins,
         destinations=grid.points,
@@ -105,9 +107,7 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
         max_time=dt.timedelta(minutes=req.max_minutes),
         transport_modes=[r5py.TransportMode.TRANSIT, r5py.TransportMode.WALK],
     )
-    df = computer.compute_travel_times()
 
-    # r5py returns a long-form DataFrame (from_id, to_id, travel_time minutes).
     times = np.full(len(grid.points), -1, dtype=np.int32)
     reachable = df.dropna(subset=["travel_time"])
     idx = reachable["to_id"].to_numpy(dtype=np.int64)
