@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
+import hashlib
 import io
+import json
 import logging
 import os
 import threading
@@ -243,29 +245,69 @@ def gtfs_summary() -> dict:
     return result
 
 
-# In-memory LRU on response objects, keyed by quantized origin + every param
-# that affects the output. ~100 m quantization means repeat clicks in the same
-# area (and toggling the view/max-rides pickers) are instant hits.
-from collections import OrderedDict
-
-_response_cache: "OrderedDict[tuple, TravelTimeResponse]" = OrderedDict()
+# Disk-backed cache of /travel_times responses. Quantizing the click to
+# ~100 m means repeat clicks in the same area (and re-toggling view /
+# max-rides for the same origin) are instant lookups. Persisted under a
+# Docker volume so the cache survives container rebuilds.
+RESPONSE_CACHE_DIR = Path(os.environ.get("RIGA_RESPONSE_CACHE_DIR", "/root/.cache/riga_tt_cache"))
+RESPONSE_CACHE_MAX = int(os.environ.get("RIGA_RESPONSE_CACHE_MAX", "2000"))
 _response_cache_lock = threading.Lock()
-RESPONSE_CACHE_MAX = int(os.environ.get("RIGA_RESPONSE_CACHE_MAX", "128"))
 # ~0.001 deg ≈ 111 m lat / ≈ 60 m lon at Riga's latitude.
 _CLICK_QUANT = 0.001
 
 
-def _cache_key(req: TravelTimeRequest, departure: dt.datetime) -> tuple:
-    return (
+def _cache_key(req: TravelTimeRequest, departure: dt.datetime) -> list:
+    return [
         round(req.lat / _CLICK_QUANT),
         round(req.lon / _CLICK_QUANT),
         req.grid_m,
         req.max_minutes,
         departure.isoformat(),
-        tuple(sorted(m.upper() for m in req.modes)),
+        sorted(m.upper() for m in req.modes),
         req.view,
         req.max_rides,
-    )
+    ]
+
+
+def _cache_path(key: list) -> Path:
+    h = hashlib.sha1(json.dumps(key, sort_keys=True).encode()).hexdigest()
+    return RESPONSE_CACHE_DIR / f"{h}.json"
+
+
+def _load_cached(key: list) -> TravelTimeResponse | None:
+    p = _cache_path(key)
+    if not p.exists():
+        return None
+    try:
+        resp = TravelTimeResponse.model_validate_json(p.read_bytes())
+    except Exception as e:
+        log.warning("Cache read failed for %s: %s — evicting", p.name, e)
+        p.unlink(missing_ok=True)
+        return None
+    # Touch mtime so the entry is "recent" for LRU eviction.
+    try:
+        os.utime(p, None)
+    except OSError:
+        pass
+    return resp
+
+
+def _store_cached(key: list, resp: TravelTimeResponse) -> None:
+    RESPONSE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    p = _cache_path(key)
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(resp.model_dump_json())
+    tmp.replace(p)  # atomic, prevents half-written cache files.
+    _evict_if_needed()
+
+
+def _evict_if_needed() -> None:
+    files = list(RESPONSE_CACHE_DIR.glob("*.json"))
+    if len(files) <= RESPONSE_CACHE_MAX:
+        return
+    files.sort(key=lambda f: f.stat().st_mtime)
+    for f in files[: len(files) - RESPONSE_CACHE_MAX]:
+        f.unlink(missing_ok=True)
 
 
 @app.post("/travel_times", response_model=TravelTimeResponse)
@@ -279,11 +321,9 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
 
     departure = req.departure or _next_weekday_morning()
     key = _cache_key(req, departure)
-    with _response_cache_lock:
-        cached = _response_cache.get(key)
-        if cached is not None:
-            _response_cache.move_to_end(key)
-            return cached
+    cached = _load_cached(key)
+    if cached is not None:
+        return cached
 
     grid = _cached_grid(req.grid_m)
     origins = origin_frame(req.lat, req.lon)
@@ -316,10 +356,7 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
     )
 
     with _response_cache_lock:
-        _response_cache[key] = resp
-        _response_cache.move_to_end(key)
-        while len(_response_cache) > RESPONSE_CACHE_MAX:
-            _response_cache.popitem(last=False)
+        _store_cached(key, resp)
     return resp
 
 

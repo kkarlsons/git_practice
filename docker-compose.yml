@@ -6,6 +6,7 @@ services:
       - "8000"
     volumes:
       - ./data:/data:ro
+      - tt_cache:/root/.cache/riga_tt_cache
     environment:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       RIGA_GRID_M: ${RIGA_GRID_M:-50}
@@ -30,3 +31,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  tt_cache:
