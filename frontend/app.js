@@ -67,6 +67,15 @@ async function waitForBackend() {
 }
 waitForBackend();
 
+const walkSlider = document.getElementById("max-walk");
+const walkLabel = document.getElementById("walk-label");
+function updateWalkLabel() {
+  const v = Number(walkSlider.value);
+  walkLabel.textContent = v > 0 ? `${v} min max` : "no limit";
+}
+walkSlider.addEventListener("input", updateWalkLabel);
+updateWalkLabel();
+
 function setStatus(text, kind = "idle") {
   const el = document.getElementById("status");
   el.textContent = text;
@@ -100,6 +109,8 @@ async function computeAndRender(lat, lng) {
   const departure = computeDeparture();
   const maxRidesRaw = document.getElementById("max-rides").value;
   const maxRides = maxRidesRaw === "" ? null : Number(maxRidesRaw);
+  const maxWalkVal = Number(document.getElementById("max-walk").value);
+  const maxWalkingMinutes = maxWalkVal > 0 ? maxWalkVal : null;
 
   const loadMsg = view === "rides"
     ? `Computing number of rides (${gridM} m grid, ~15 s)…`
@@ -115,6 +126,7 @@ async function computeAndRender(lat, lng) {
       body: JSON.stringify({
         lat, lon: lng, grid_m: gridM, max_minutes: maxMin,
         departure, modes, view, max_rides: maxRides,
+        max_walking_minutes: maxWalkingMinutes,
       }),
     });
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);

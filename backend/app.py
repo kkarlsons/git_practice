@@ -116,6 +116,8 @@ class TravelTimeRequest(BaseModel):
     # Cap on transit boardings (1 = direct only, 2 = one transfer, ...).
     # None means r5py's default (no effective cap for our purposes).
     max_rides: int | None = Field(default=None, ge=0, le=8)
+    # Cap on cumulative walking (access + transfers + egress). None = no cap.
+    max_walking_minutes: int | None = Field(default=None, ge=1, le=240)
 
 
 class TravelTimeResponse(BaseModel):
@@ -266,6 +268,7 @@ def _cache_key(req: TravelTimeRequest, departure: dt.datetime) -> list:
         sorted(m.upper() for m in req.modes),
         req.view,
         req.max_rides,
+        req.max_walking_minutes,
     ]
 
 
@@ -331,11 +334,13 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
 
     if req.view == "time":
         values, reached, median = _compute_time(
-            r5py, net, origins, grid, departure, req.max_minutes, modes, req.max_rides
+            r5py, net, origins, grid, departure, req.max_minutes, modes,
+            req.max_rides, req.max_walking_minutes,
         )
     else:
         values, reached, median = _compute_rides(
-            r5py, net, origins, grid, departure, req.max_minutes, modes, req.max_rides
+            r5py, net, origins, grid, departure, req.max_minutes, modes,
+            req.max_rides, req.max_walking_minutes,
         )
 
     resp = TravelTimeResponse(
@@ -352,6 +357,7 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
             "departure": departure.isoformat(),
             "modes": req.modes,
             "max_rides": req.max_rides,
+            "max_walking_minutes": req.max_walking_minutes,
         },
     )
 
@@ -360,7 +366,8 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
     return resp
 
 
-def _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides):
+def _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides,
+            max_walking_minutes=None):
     kwargs = dict(
         origins=origins,
         destinations=grid.points,
@@ -371,6 +378,8 @@ def _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides):
     )
     if max_rides is not None:
         kwargs["max_public_transport_rides"] = max_rides
+    if max_walking_minutes is not None:
+        kwargs["max_time_walking"] = dt.timedelta(minutes=max_walking_minutes)
     try:
         return r5py.TravelTimeMatrix(net, **kwargs)
     except TypeError:
@@ -380,8 +389,10 @@ def _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides):
         return r5py.TravelTimeMatrix(net, **kwargs)
 
 
-def _compute_time(r5py, net, origins, grid, departure, max_minutes, modes, max_rides):
-    df = _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides)
+def _compute_time(r5py, net, origins, grid, departure, max_minutes, modes, max_rides,
+                  max_walking_minutes=None):
+    df = _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides,
+                 max_walking_minutes)
     times = np.full(len(grid.points), -1, dtype=np.int32)
     reachable = df.dropna(subset=["travel_time"])
     idx = reachable["to_id"].to_numpy(dtype=np.int64)
@@ -392,7 +403,8 @@ def _compute_time(r5py, net, origins, grid, departure, max_minutes, modes, max_r
     return times, reached, median
 
 
-def _compute_rides(r5py, net, origins, grid, departure, max_minutes, modes, max_rides):
+def _compute_rides(r5py, net, origins, grid, departure, max_minutes, modes, max_rides,
+                   max_walking_minutes=None):
     """For each cell: the minimum number of transit boardings needed to reach it.
 
     0 = walk only, 1 = direct ride, 2 = one transfer, etc. -1 = unreachable.
@@ -404,7 +416,8 @@ def _compute_rides(r5py, net, origins, grid, departure, max_minutes, modes, max_
 
     upper = max_rides if max_rides is not None else int(os.environ.get("RIGA_MAX_TRANSFERS", "3")) + 1
     for r in range(upper + 1):  # 0..upper
-        df = _matrix(r5py, net, origins, grid, departure, max_minutes, modes, r)
+        df = _matrix(r5py, net, origins, grid, departure, max_minutes, modes, r,
+                     max_walking_minutes)
         reachable = df.dropna(subset=["travel_time"])
         idx = reachable["to_id"].to_numpy(dtype=np.int64)
         unset = rides[idx] < 0
