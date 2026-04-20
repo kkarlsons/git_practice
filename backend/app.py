@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .riga import Grid, RIGA_BBOX, build_grid, origin_frame
+from .gtfs_shift import shift_gtfs_if_expired
 
 log = logging.getLogger("riga-heatmap")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -28,10 +29,25 @@ DATA_DIR = Path(os.environ.get("RIGA_DATA_DIR", Path(__file__).parent.parent / "
 OSM_PATH = DATA_DIR / "latvia-latest.osm.pbf"
 DEFAULT_GRID_M = int(os.environ.get("RIGA_GRID_M", "50"))
 MAX_TRIP_MIN = int(os.environ.get("RIGA_MAX_TRIP_MIN", "90"))
+# Writable location for GTFS copies whose calendars we've shifted forward.
+SHIFTED_GTFS_DIR = Path(os.environ.get("RIGA_SHIFTED_GTFS_DIR", "/root/.cache/gtfs_shifted"))
 
 
 def _gtfs_paths() -> list[Path]:
     return sorted(DATA_DIR.glob("*.zip"))
+
+
+def _effective_gtfs_paths() -> list[Path]:
+    """GTFS paths to actually hand to r5py. Expired feeds get rewritten into a
+    writable cache with dates shifted forward; current feeds pass through."""
+    today = dt.date.today()
+    # Need feeds to cover today plus a comfortable horizon.
+    target = today + dt.timedelta(days=180)
+    out = []
+    for src in _gtfs_paths():
+        dst = SHIFTED_GTFS_DIR / src.name
+        out.append(shift_gtfs_if_expired(src, dst, target_end_min=target))
+    return out
 
 
 # GTFS extended route_type → friendly label. Legacy types map directly.
@@ -134,12 +150,12 @@ def _build_network():
     import r5py
     import time as _time
 
-    gtfs = _gtfs_paths()
-    if not OSM_PATH.exists() or not gtfs:
+    if not OSM_PATH.exists() or not _gtfs_paths():
         raise RuntimeError(
             f"Missing data. Need {OSM_PATH} and at least one *.zip GTFS feed "
             f"under {DATA_DIR}. Run scripts/fetch_data.sh."
         )
+    gtfs = _effective_gtfs_paths()
     log.info("Loading transport network: OSM + %d GTFS feed(s): %s", len(gtfs), [p.name for p in gtfs])
     _network_status["started_at"] = _time.monotonic()
     stop = threading.Event()
