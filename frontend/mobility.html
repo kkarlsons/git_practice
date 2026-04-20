@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Riga Mobility Pain Points</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #ctrl {
+      position: fixed; top: 16px; left: 16px;
+      background: rgba(255,255,255,0.95); padding: 14px 16px;
+      border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.15);
+      z-index: 10; width: 280px;
+    }
+    #ctrl h1 { font-size: 15px; margin: 0 0 10px; }
+    #ctrl p  { font-size: 12px; color: #555; margin: 0 0 10px; }
+    #ctrl label { display: block; font-size: 12px; margin-bottom: 10px; }
+    #ctrl select { width: 100%; margin-top: 4px; padding: 4px; font: inherit; }
+    .bar { height: 10px; border-radius: 5px; margin-top: 6px; }
+    .bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-top: 2px; }
+    #top { margin-top: 10px; border-top: 1px solid #e5e7eb; padding-top: 10px; font-size: 12px; }
+    #top h2 { font-size: 12px; margin: 0 0 6px; color: #333; }
+    #top ol { padding-left: 18px; margin: 0; }
+    #top li { margin-bottom: 2px; }
+    .hint { font-size: 11px; color: #666; }
+  </style>
+</head>
+<body>
+  <div id="map" style="position:fixed;inset:0"></div>
+  <div id="ctrl">
+    <h1>Riga mobility pain points</h1>
+    <p class="hint">Each dot is an origin on a coarse grid. Colour shows a transit-quality score.</p>
+    <label>Metric
+      <select id="metric">
+        <option value="reach_peak">Outbound reach @ 45 min (red = fewest places reachable)</option>
+        <option value="transfer_burden">Transfer burden (red = forced transfers)</option>
+        <option value="offpeak_cliff">Off-peak cliff (red = night abandonment)</option>
+      </select>
+    </label>
+    <div class="bar" id="legend-bar"></div>
+    <div class="bar-labels">
+      <span id="min-label">—</span>
+      <span id="max-label">—</span>
+    </div>
+    <div id="top"></div>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script>
+    const RIGA_CENTER = [24.1052, 56.9496];
+    const map = new maplibregl.Map({
+      container: "map",
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: [
+              "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+              "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+              "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            ],
+            tileSize: 256,
+          },
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }],
+      },
+      center: RIGA_CENTER,
+      zoom: 11,
+    });
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    // High value = worse for transfer_burden / offpeak_cliff; low value = worse for reach_peak.
+    const WORSE_IS_HIGH = { reach_peak: false, transfer_burden: true, offpeak_cliff: true };
+    const METRIC_LABEL = {
+      reach_peak: "Reachable cells @ 45 min",
+      transfer_burden: "Cells only reachable with a transfer",
+      offpeak_cliff: "Cells lost on Sat 22:00 vs Mon 08:00",
+    };
+
+    let data = null;
+
+    async function load() {
+      try {
+        const res = await fetch("mobility_scan.geojson", { cache: "no-cache" });
+        if (!res.ok) throw new Error(res.statusText);
+        data = await res.json();
+      } catch (err) {
+        document.getElementById("top").innerHTML =
+          `<p class="hint">No scan results yet. Run <code>python3 scripts/mobility_scan.py</code> on the server.</p>`;
+        return;
+      }
+      if (map.loaded()) render(); else map.on("load", render);
+    }
+
+    function render() {
+      const metric = document.getElementById("metric").value;
+      const values = data.features.map(f => f.properties[metric]).filter(v => v != null);
+      if (!values.length) {
+        document.getElementById("top").innerHTML =
+          `<p class="hint">Metric not available — rerun with <code>--include-offpeak</code>.</p>`;
+        return;
+      }
+      const mn = Math.min(...values), mx = Math.max(...values);
+      document.getElementById("min-label").textContent = mn;
+      document.getElementById("max-label").textContent = mx;
+
+      // Ramp: red (worst) → yellow → green (best). Flip depending on metric semantics.
+      const RAMP = [
+        ["#bd0026", "#fd8d3c", "#ffe047", "#1a9850", "#0d47a1"],
+      ][0];
+      const worseIsHigh = WORSE_IS_HIGH[metric];
+      const stops = RAMP.map((c, i) => [
+        mn + (i / (RAMP.length - 1)) * (mx - mn || 1),
+        worseIsHigh ? RAMP[RAMP.length - 1 - i] : c,
+      ]);
+
+      const bar = document.getElementById("legend-bar");
+      bar.style.background = `linear-gradient(to right, ${stops.map(s => s[1]).join(", ")})`;
+
+      if (map.getLayer("pts")) map.removeLayer("pts");
+      if (map.getSource("pts")) map.removeSource("pts");
+      map.addSource("pts", { type: "geojson", data });
+      map.addLayer({
+        id: "pts",
+        type: "circle",
+        source: "pts",
+        paint: {
+          "circle-radius": 9,
+          "circle-color": ["interpolate", ["linear"], ["get", metric], ...stops.flat()],
+          "circle-opacity": 0.85,
+          "circle-stroke-color": "#333",
+          "circle-stroke-width": 0.5,
+        },
+      });
+
+      renderTop(metric, worseIsHigh);
+    }
+
+    function renderTop(metric, worseIsHigh) {
+      const feats = data.features
+        .filter(f => f.properties[metric] != null)
+        .sort((a, b) => worseIsHigh
+          ? b.properties[metric] - a.properties[metric]
+          : a.properties[metric] - b.properties[metric])
+        .slice(0, 10);
+      const label = METRIC_LABEL[metric];
+      document.getElementById("top").innerHTML =
+        `<h2>Worst 10 origins — ${label}</h2><ol>` +
+        feats.map(f => {
+          const [lon, lat] = f.geometry.coordinates;
+          return `<li><a href="#" data-lat="${lat}" data-lon="${lon}">`
+               + `${lat.toFixed(4)}, ${lon.toFixed(4)}</a> — `
+               + `${f.properties[metric]}</li>`;
+        }).join("") + `</ol>`;
+      document.querySelectorAll("#top a").forEach(a => {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          map.flyTo({ center: [Number(a.dataset.lon), Number(a.dataset.lat)], zoom: 14 });
+        });
+      });
+    }
+
+    document.getElementById("metric").addEventListener("change", render);
+    load();
+  </script>
+</body>
+</html>
