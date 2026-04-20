@@ -243,6 +243,31 @@ def gtfs_summary() -> dict:
     return result
 
 
+# In-memory LRU on response objects, keyed by quantized origin + every param
+# that affects the output. ~100 m quantization means repeat clicks in the same
+# area (and toggling the view/max-rides pickers) are instant hits.
+from collections import OrderedDict
+
+_response_cache: "OrderedDict[tuple, TravelTimeResponse]" = OrderedDict()
+_response_cache_lock = threading.Lock()
+RESPONSE_CACHE_MAX = int(os.environ.get("RIGA_RESPONSE_CACHE_MAX", "128"))
+# ~0.001 deg ≈ 111 m lat / ≈ 60 m lon at Riga's latitude.
+_CLICK_QUANT = 0.001
+
+
+def _cache_key(req: TravelTimeRequest, departure: dt.datetime) -> tuple:
+    return (
+        round(req.lat / _CLICK_QUANT),
+        round(req.lon / _CLICK_QUANT),
+        req.grid_m,
+        req.max_minutes,
+        departure.isoformat(),
+        tuple(sorted(m.upper() for m in req.modes)),
+        req.view,
+        req.max_rides,
+    )
+
+
 @app.post("/travel_times", response_model=TravelTimeResponse)
 def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
     import r5py
@@ -252,9 +277,16 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
+    departure = req.departure or _next_weekday_morning()
+    key = _cache_key(req, departure)
+    with _response_cache_lock:
+        cached = _response_cache.get(key)
+        if cached is not None:
+            _response_cache.move_to_end(key)
+            return cached
+
     grid = _cached_grid(req.grid_m)
     origins = origin_frame(req.lat, req.lon)
-    departure = req.departure or _next_weekday_morning()
     modes = _resolve_modes(req.modes) or _resolve_modes([WALK])
 
     if req.view == "time":
@@ -266,7 +298,7 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
             r5py, net, origins, grid, departure, req.max_minutes, modes, req.max_rides
         )
 
-    return TravelTimeResponse(
+    resp = TravelTimeResponse(
         grid_m=grid.grid_m,
         nrows=grid.nrows,
         ncols=grid.ncols,
@@ -282,6 +314,13 @@ def travel_times(req: TravelTimeRequest) -> TravelTimeResponse:
             "max_rides": req.max_rides,
         },
     )
+
+    with _response_cache_lock:
+        _response_cache[key] = resp
+        _response_cache.move_to_end(key)
+        while len(_response_cache) > RESPONSE_CACHE_MAX:
+            _response_cache.popitem(last=False)
+    return resp
 
 
 def _matrix(r5py, net, origins, grid, departure, max_minutes, modes, max_rides):
