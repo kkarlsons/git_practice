@@ -64,6 +64,33 @@ def post(base_url: str, body: dict, timeout: int = 180) -> dict:
         return json.loads(r.read())
 
 
+def wait_for_ready(base_url: str, timeout_s: int = 900) -> None:
+    """Block until the backend's /ready returns ready=true. The first build
+    of the r5py transport network takes 60–180 s; Caddy returns 502 while
+    uvicorn is still running its lifespan startup, so scanning before the
+    backend is warm produces 625 consecutive SKIPs."""
+    url = f"{base_url.rstrip('/')}/ready"
+    deadline = time.monotonic() + timeout_s
+    last_elapsed = -1
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=10) as r:
+                info = json.loads(r.read())
+            if info.get("ready"):
+                print(f"Backend ready after {info.get('elapsed_s', '?')}s.\n")
+                return
+            el = int(info.get("elapsed_s", 0) or 0)
+            if el != last_elapsed:
+                print(f"Waiting for backend… warming up ({el}s elapsed)")
+                last_elapsed = el
+        except urllib.error.HTTPError as e:
+            print(f"Waiting for backend… HTTP {e.code}")
+        except Exception as e:
+            print(f"Waiting for backend… {type(e).__name__}: {e}")
+        time.sleep(5)
+    raise SystemExit(f"Backend still not ready after {timeout_s}s — check docker logs.")
+
+
 def count_reached(data: dict) -> int:
     return sum(1 for v in data["values"] if v >= 0)
 
@@ -96,6 +123,8 @@ def main() -> None:
         "view": "time",
         "departure": mon08.isoformat(),
     }
+
+    wait_for_ready(args.base_url)
 
     origins = list(origin_grid(args.spacing_m))
     calls_per = 3 if args.include_offpeak else 2
