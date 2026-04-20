@@ -11,7 +11,8 @@ services:
       RIGA_GRID_M: ${RIGA_GRID_M:-50}
       RIGA_MAX_TRIP_MIN: ${RIGA_MAX_TRIP_MIN:-90}
       # JVM auto-reads JAVA_TOOL_OPTIONS; JAVA_OPTS is ignored unless a launcher script passes it.
-      JAVA_TOOL_OPTIONS: "-Xmx6g"
+      # 8g is enough for 20m grid × 3h max-trip worst case on the Riga extract.
+      JAVA_TOOL_OPTIONS: "-Xmx8g"
 
   caddy:
     image: caddy:2

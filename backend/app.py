@@ -164,6 +164,11 @@ def _transport_network():
         return _build_network()
 
 
+# r5py doesn't expose TROLLEYBUS as a separate mode — R5 lumps trolleybuses
+# in with BUS at routing time. Alias so the UI checkbox works.
+MODE_ALIASES = {"TROLLEYBUS": "BUS"}
+
+
 def _resolve_modes(names: list[str]) -> list:
     """Map user-supplied mode names to r5py.TransportMode values, dropping unknowns."""
     import r5py
@@ -171,10 +176,13 @@ def _resolve_modes(names: list[str]) -> list:
     tm = r5py.TransportMode
     available = {n: getattr(tm, n) for n in dir(tm) if not n.startswith("_")}
     modes = []
+    seen: set[str] = set()
     for n in names:
-        key = n.upper()
+        key = MODE_ALIASES.get(n.upper(), n.upper())
         if key in available:
-            modes.append(available[key])
+            if key not in seen:
+                modes.append(available[key])
+                seen.add(key)
         else:
             log.warning("Unknown transport mode %r (have: %s)", n, sorted(available))
     return modes
