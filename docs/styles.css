@@ -54,28 +54,28 @@
 @media (prefers-color-scheme: light) {
   :root {
     --bg-0: #EEEEEE;
-    --bg-1: #F6F6F4;
+    --bg-1: #F1F5E8;         /* faint brand-green tint in the base */
     --bg-2: #DDE1D2;
     --text: #071C23;
     --text-strong: #000000;
-    --muted: rgba(7, 28, 35, 0.6);
-    --muted-2: rgba(7, 28, 35, 0.32);
-    --hair: rgba(7, 28, 35, 0.08);
+    --muted: rgba(7, 28, 35, 0.62);
+    --muted-2: rgba(7, 28, 35, 0.34);
+    --hair: rgba(7, 28, 35, 0.10);
 
-    --brand-soft: rgba(152, 189, 9, 0.18);
-    --warn-soft: rgba(245, 158, 11, 0.2);
+    --brand-soft: rgba(152, 189, 9, 0.24);
+    --warn-soft: rgba(245, 158, 11, 0.24);
 
-    --card: rgba(255, 255, 255, 0.7);
-    --card-strong: rgba(255, 255, 255, 0.9);
-    --card-border: rgba(7, 28, 35, 0.08);
-    --shadow-card: 0 10px 30px rgba(7, 28, 35, 0.08),
-                   0 1px 0 rgba(255, 255, 255, 0.7) inset;
-    --shadow-hero: 0 20px 60px rgba(152, 189, 9, 0.25);
+    --card: rgba(255, 255, 255, 0.78);
+    --card-strong: rgba(255, 255, 255, 0.94);
+    --card-border: rgba(3, 65, 60, 0.14);
+    --shadow-card: 0 14px 36px rgba(3, 65, 60, 0.10),
+                   0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    --shadow-hero: 0 22px 60px rgba(152, 189, 9, 0.30);
 
-    --orb-a: rgba(152, 189, 9, 0.35);
-    --orb-b: rgba(3, 65, 60, 0.25);
-    --orb-c: rgba(152, 189, 9, 0.2);
-    --grain-opacity: 0.025;
+    --orb-a: rgba(152, 189, 9, 0.45);
+    --orb-b: rgba(3, 65, 60, 0.28);
+    --orb-c: rgba(152, 189, 9, 0.28);
+    --grain-opacity: 0.03;
   }
 }
 
@@ -499,6 +499,25 @@ main {
 .hero-value.normal { background: linear-gradient(180deg, #FFFFFF 0%, #EEEEEE 60%, rgba(238,238,238,0.6) 100%);
                      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
+@media (prefers-color-scheme: light) {
+  .hero-value,
+  .hero-value.normal {
+    background: linear-gradient(180deg, #03413C 0%, #071C23 55%, #03413C 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 14px rgba(3, 65, 60, 0.18));
+  }
+  .hero-value.cheap {
+    background: linear-gradient(180deg, #6B8A04 0%, #98BD09 55%, #546D03 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 6px 18px rgba(152, 189, 9, 0.35));
+  }
+  .hero-value.pricy {
+    background: linear-gradient(180deg, #B45309 0%, #D97706 55%, #7C2D04 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 6px 18px rgba(245, 158, 11, 0.35));
+  }
+}
+
 .hero-unit {
   font-size: 18px;
   font-weight: 600;
@@ -702,7 +721,30 @@ main {
   overflow: hidden;
 }
 @media (prefers-color-scheme: light) {
-  .cell { background: rgba(7, 28, 35, 0.02); }
+  .cell { background: rgba(255, 255, 255, 0.6); border-color: rgba(3, 65, 60, 0.10); }
+  .cell-price { color: #071C23; }
+  .cell.cheap { background: linear-gradient(160deg, rgba(152, 189, 9, 0.36), rgba(183, 217, 16, 0.14)); }
+  .cell.cheap .cell-price { color: #556E03; }
+  .cell.pricy { background: linear-gradient(160deg, rgba(245, 158, 11, 0.36), rgba(251, 191, 36, 0.14)); }
+  .cell.pricy .cell-price { color: #B45309; }
+  .cell.crown { background: linear-gradient(160deg, rgba(152, 189, 9, 0.52), rgba(152, 189, 9, 0.16));
+                border-color: rgba(107, 138, 4, 0.55); }
+  .cell.crown .cell-price { color: #556E03; }
+  .cell.flame { background: linear-gradient(160deg, rgba(245, 158, 11, 0.52), rgba(251, 191, 36, 0.16));
+                border-color: rgba(180, 83, 9, 0.55); }
+  .cell.flame .cell-price { color: #8A3E07; }
+
+  /* Punch up supporting elements in light mode */
+  .subtitle { color: rgba(3, 65, 60, 0.72); font-weight: 600; }
+  .hero-label { color: rgba(3, 65, 60, 0.7); }
+  .stat-value { color: #071C23; }
+  .card-head h3 { color: rgba(3, 65, 60, 0.75); }
+  .pill.normal { background: rgba(3, 65, 60, 0.12); color: #03413C; }
+  .pill.cheap  { background: rgba(152, 189, 9, 0.26); color: #4A6103; }
+  .pill.pricy  { background: rgba(245, 158, 11, 0.26); color: #8A3E07; }
+  .seg { color: rgba(3, 65, 60, 0.7); }
+  .seg.active { color: #071C23; }
+  .insight-title { color: #071C23; }
 }
 .cell:active { transform: scale(0.97); }
 
