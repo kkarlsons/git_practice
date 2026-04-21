@@ -6,22 +6,22 @@
    ------------------------------------------------------------------ */
 
 :root {
-  color-scheme: dark light;
+  color-scheme: light;
 
-  /* --- Dark is the brand default (matches Engycell comms) --- */
-  --bg-0: #05161C;              /* slightly deeper for depth */
-  --bg-1: #0A2B26;              /* green-teal base — pulls #071C23 toward #03413C */
-  --bg-2: #03413C;              /* secondary deep teal */
-  --text: #EEEEEE;
-  --text-strong: #FFFFFF;
-  --muted: rgba(238, 238, 238, 0.58);
-  --muted-2: rgba(238, 238, 238, 0.32);
-  --hair: rgba(238, 238, 238, 0.08);
+  /* --- Light Engycell palette — off-white base with brand-green tint --- */
+  --bg-0: #EEEEEE;
+  --bg-1: #F1F5E8;              /* faint brand-green tint */
+  --bg-2: #DDE1D2;
+  --text: #071C23;
+  --text-strong: #000000;
+  --muted: rgba(7, 28, 35, 0.62);
+  --muted-2: rgba(7, 28, 35, 0.34);
+  --hair: rgba(7, 28, 35, 0.10);
 
   --brand:      #98BD09;        /* vivid green */
   --brand-2:    #B7D910;        /* a touch brighter for glow */
   --brand-dim:  #6B8A04;        /* deeper green for hover / borders */
-  --brand-soft: rgba(152, 189, 9, 0.14);
+  --brand-soft: rgba(152, 189, 9, 0.24);
   --brand-glow: rgba(152, 189, 9, 0.45);
 
   --teal:       #03413C;
@@ -30,53 +30,25 @@
   /* "Priciest" signal — amber that still feels Engycell */
   --warn:       #F59E0B;
   --warn-2:     #FBBF24;
-  --warn-soft:  rgba(245, 158, 11, 0.16);
+  --warn-soft:  rgba(245, 158, 11, 0.24);
   --warn-glow:  rgba(245, 158, 11, 0.45);
 
-  --card: rgba(238, 238, 238, 0.04);
-  --card-strong: rgba(238, 238, 238, 0.08);
-  --card-border: rgba(238, 238, 238, 0.09);
-  --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.45),
-                 0 1px 0 rgba(238, 238, 238, 0.05) inset;
-  --shadow-hero: 0 24px 80px rgba(152, 189, 9, 0.18);
+  --card: rgba(255, 255, 255, 0.78);
+  --card-strong: rgba(255, 255, 255, 0.94);
+  --card-border: rgba(3, 65, 60, 0.14);
+  --shadow-card: 0 14px 36px rgba(3, 65, 60, 0.10),
+                 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  --shadow-hero: 0 22px 60px rgba(152, 189, 9, 0.30);
 
   --brand-grad:   linear-gradient(135deg, #98BD09 0%, #B7D910 55%, #EEEEEE 120%);
   --brand-grad-2: linear-gradient(135deg, #98BD09 0%, #03413C 100%);
   --brand-grad-3: linear-gradient(180deg, #98BD09 0%, #6B8A04 100%);
-  --hero-grad:    linear-gradient(180deg, #B7D910 0%, #98BD09 60%, #6B8A04 100%);
+  --hero-grad:    linear-gradient(180deg, #03413C 0%, #071C23 55%, #03413C 100%);
 
-  --orb-a: rgba(152, 189, 9, 0.38);
-  --orb-b: rgba(3, 65, 60, 0.85);
-  --orb-c: rgba(152, 189, 9, 0.22);
-  --grain-opacity: 0.05;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg-0: #EEEEEE;
-    --bg-1: #F1F5E8;         /* faint brand-green tint in the base */
-    --bg-2: #DDE1D2;
-    --text: #071C23;
-    --text-strong: #000000;
-    --muted: rgba(7, 28, 35, 0.62);
-    --muted-2: rgba(7, 28, 35, 0.34);
-    --hair: rgba(7, 28, 35, 0.10);
-
-    --brand-soft: rgba(152, 189, 9, 0.24);
-    --warn-soft: rgba(245, 158, 11, 0.24);
-
-    --card: rgba(255, 255, 255, 0.78);
-    --card-strong: rgba(255, 255, 255, 0.94);
-    --card-border: rgba(3, 65, 60, 0.14);
-    --shadow-card: 0 14px 36px rgba(3, 65, 60, 0.10),
-                   0 1px 0 rgba(255, 255, 255, 0.9) inset;
-    --shadow-hero: 0 22px 60px rgba(152, 189, 9, 0.30);
-
-    --orb-a: rgba(152, 189, 9, 0.45);
-    --orb-b: rgba(3, 65, 60, 0.28);
-    --orb-c: rgba(152, 189, 9, 0.28);
-    --grain-opacity: 0.03;
-  }
+  --orb-a: rgba(152, 189, 9, 0.45);
+  --orb-b: rgba(3, 65, 60, 0.28);
+  --orb-c: rgba(152, 189, 9, 0.28);
+  --grain-opacity: 0.03;
 }
 
 /* ------------------------------------------------------------------
@@ -111,20 +83,10 @@ button { font: inherit; color: inherit; font-family: inherit; }
   z-index: -1;
   overflow: hidden;
   background:
-    radial-gradient(900px 500px at 20% -10%, rgba(152, 189, 9, 0.28), transparent 70%),
-    radial-gradient(1300px 1100px at 50% 45%, rgba(152, 189, 9, 0.40), transparent 65%),
-    radial-gradient(1100px 700px at 110% -10%, rgba(3, 65, 60, 0.55), transparent 60%),
-    radial-gradient(1000px 800px at -10% 110%, rgba(152, 189, 9, 0.38), transparent 60%),
+    radial-gradient(1200px 900px at 50% 45%, rgba(152, 189, 9, 0.18), transparent 65%),
+    radial-gradient(1100px 700px at 110% -10%, rgba(152, 189, 9, 0.22), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(3, 65, 60, 0.12), transparent 60%),
     var(--bg-1);
-}
-@media (prefers-color-scheme: light) {
-  .bg {
-    background:
-      radial-gradient(1200px 900px at 50% 45%, rgba(152, 189, 9, 0.14), transparent 65%),
-      radial-gradient(1100px 700px at 110% -10%, rgba(152, 189, 9, 0.18), transparent 60%),
-      radial-gradient(900px 600px at -10% 110%, rgba(3, 65, 60, 0.10), transparent 60%),
-      var(--bg-1);
-  }
 }
 
 .orb {
@@ -159,12 +121,9 @@ button { font: inherit; color: inherit; font-family: inherit; }
   z-index: 0;
 }
 .wire-track {
-  stroke: #98BD09;
-  stroke-opacity: 0.72;
-  stroke-width: 2.6;
-}
-@media (prefers-color-scheme: light) {
-  .wire-track { stroke: #03413C; stroke-opacity: 0.5; stroke-width: 2; }
+  stroke: #03413C;
+  stroke-opacity: 0.5;
+  stroke-width: 2;
 }
 .wire-pulse {
   stroke: #F2FF6A;
@@ -486,36 +445,25 @@ main {
   letter-spacing: -0.045em;
   font-variant-numeric: tabular-nums;
   color: var(--text-strong);
-  background: var(--hero-grad);
+  background: linear-gradient(180deg, #03413C 0%, #071C23 55%, #03413C 100%);
   -webkit-background-clip: text;
           background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 20px rgba(152, 189, 9, 0.25));
+  filter: drop-shadow(0 4px 14px rgba(3, 65, 60, 0.18));
 }
-.hero-value.cheap  { background: linear-gradient(180deg, #B7D910 0%, #98BD09 60%, #6B8A04 100%);
-                     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.hero-value.pricy  { background: linear-gradient(180deg, #FBBF24 0%, #F59E0B 60%, #B45309 100%);
-                     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.hero-value.normal { background: linear-gradient(180deg, #FFFFFF 0%, #EEEEEE 60%, rgba(238,238,238,0.6) 100%);
-                     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-
-@media (prefers-color-scheme: light) {
-  .hero-value,
-  .hero-value.normal {
-    background: linear-gradient(180deg, #03413C 0%, #071C23 55%, #03413C 100%);
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 4px 14px rgba(3, 65, 60, 0.18));
-  }
-  .hero-value.cheap {
-    background: linear-gradient(180deg, #6B8A04 0%, #98BD09 55%, #546D03 100%);
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 6px 18px rgba(152, 189, 9, 0.35));
-  }
-  .hero-value.pricy {
-    background: linear-gradient(180deg, #B45309 0%, #D97706 55%, #7C2D04 100%);
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 6px 18px rgba(245, 158, 11, 0.35));
-  }
+.hero-value.normal {
+  background: linear-gradient(180deg, #03413C 0%, #071C23 55%, #03413C 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-value.cheap {
+  background: linear-gradient(180deg, #6B8A04 0%, #98BD09 55%, #546D03 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 6px 18px rgba(152, 189, 9, 0.35));
+}
+.hero-value.pricy {
+  background: linear-gradient(180deg, #B45309 0%, #D97706 55%, #7C2D04 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 6px 18px rgba(245, 158, 11, 0.35));
 }
 
 .hero-unit {
@@ -720,32 +668,14 @@ main {
   transition: transform .15s cubic-bezier(.2,.7,.2,1), background .2s;
   overflow: hidden;
 }
-@media (prefers-color-scheme: light) {
-  .cell { background: rgba(255, 255, 255, 0.6); border-color: rgba(3, 65, 60, 0.10); }
-  .cell-price { color: #071C23; }
-  .cell.cheap { background: linear-gradient(160deg, rgba(152, 189, 9, 0.36), rgba(183, 217, 16, 0.14)); }
-  .cell.cheap .cell-price { color: #556E03; }
-  .cell.pricy { background: linear-gradient(160deg, rgba(245, 158, 11, 0.36), rgba(251, 191, 36, 0.14)); }
-  .cell.pricy .cell-price { color: #B45309; }
-  .cell.crown { background: linear-gradient(160deg, rgba(152, 189, 9, 0.52), rgba(152, 189, 9, 0.16));
-                border-color: rgba(107, 138, 4, 0.55); }
-  .cell.crown .cell-price { color: #556E03; }
-  .cell.flame { background: linear-gradient(160deg, rgba(245, 158, 11, 0.52), rgba(251, 191, 36, 0.16));
-                border-color: rgba(180, 83, 9, 0.55); }
-  .cell.flame .cell-price { color: #8A3E07; }
+.cell { background: rgba(255, 255, 255, 0.6); border-color: rgba(3, 65, 60, 0.10); }
+.cell-price { color: #071C23; }
 
-  /* Punch up supporting elements in light mode */
-  .subtitle { color: rgba(3, 65, 60, 0.72); font-weight: 600; }
-  .hero-label { color: rgba(3, 65, 60, 0.7); }
-  .stat-value { color: #071C23; }
-  .card-head h3 { color: rgba(3, 65, 60, 0.75); }
-  .pill.normal { background: rgba(3, 65, 60, 0.12); color: #03413C; }
-  .pill.cheap  { background: rgba(152, 189, 9, 0.26); color: #4A6103; }
-  .pill.pricy  { background: rgba(245, 158, 11, 0.26); color: #8A3E07; }
-  .seg { color: rgba(3, 65, 60, 0.7); }
-  .seg.active { color: #071C23; }
-  .insight-title { color: #071C23; }
-}
+/* Pill / supporting colour overrides for the light palette */
+.pill.normal { background: rgba(3, 65, 60, 0.12); color: #03413C; }
+.pill.cheap  { background: rgba(152, 189, 9, 0.26); color: #4A6103; }
+.pill.pricy  { background: rgba(245, 158, 11, 0.26); color: #8A3E07; }
+.insight-title { color: #071C23; }
 .cell:active { transform: scale(0.97); }
 
 .cell-time {
@@ -796,45 +726,45 @@ main {
 
 /* Cheap */
 .cell.cheap {
-  background: linear-gradient(160deg, rgba(152, 189, 9, 0.28), rgba(152, 189, 9, 0.06));
-  border-color: rgba(152, 189, 9, 0.4);
-  box-shadow: 0 4px 18px rgba(152, 189, 9, 0.18),
-              0 0 0 1px rgba(152, 189, 9, 0.12) inset;
+  background: linear-gradient(160deg, rgba(152, 189, 9, 0.36), rgba(183, 217, 16, 0.14));
+  border-color: rgba(107, 138, 4, 0.45);
+  box-shadow: 0 4px 18px rgba(152, 189, 9, 0.22),
+              0 0 0 1px rgba(152, 189, 9, 0.14) inset;
 }
-.cell.cheap .cell-price { color: var(--brand-2); }
+.cell.cheap .cell-price { color: #556E03; }
 .cell.cheap .cell-bar > span { background: linear-gradient(90deg, #6B8A04, #98BD09, #B7D910); }
 
 /* Pricy */
 .cell.pricy {
-  background: linear-gradient(160deg, rgba(245, 158, 11, 0.28), rgba(245, 158, 11, 0.06));
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.18),
-              0 0 0 1px rgba(245, 158, 11, 0.12) inset;
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.36), rgba(251, 191, 36, 0.14));
+  border-color: rgba(180, 83, 9, 0.45);
+  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.22),
+              0 0 0 1px rgba(245, 158, 11, 0.14) inset;
 }
-.cell.pricy .cell-price { color: var(--warn); }
+.cell.pricy .cell-price { color: #B45309; }
 .cell.pricy .cell-bar > span { background: linear-gradient(90deg, #B45309, #F59E0B, #FBBF24); }
 
 /* Crown (absolute cheapest) — pure brand green with extra glow */
 .cell.crown {
-  background: linear-gradient(160deg, rgba(152, 189, 9, 0.38), rgba(3, 65, 60, 0.20));
-  border-color: rgba(152, 189, 9, 0.7);
-  box-shadow: 0 8px 28px rgba(152, 189, 9, 0.45),
-              0 0 0 1px rgba(152, 189, 9, 0.3) inset;
+  background: linear-gradient(160deg, rgba(152, 189, 9, 0.52), rgba(152, 189, 9, 0.16));
+  border-color: rgba(107, 138, 4, 0.55);
+  box-shadow: 0 8px 28px rgba(152, 189, 9, 0.40),
+              0 0 0 1px rgba(152, 189, 9, 0.30) inset;
 }
 .cell.crown .cell-badge { font-size: 12px; top: 2px; right: 2px;
   filter: drop-shadow(0 0 6px rgba(152, 189, 9, .8)); }
-.cell.crown .cell-price { color: #B7D910; }
+.cell.crown .cell-price { color: #556E03; }
 
 /* Flame (absolute priciest) */
 .cell.flame {
-  background: linear-gradient(160deg, rgba(251, 191, 36, 0.36), rgba(180, 83, 9, 0.14));
-  border-color: rgba(251, 191, 36, 0.6);
-  box-shadow: 0 8px 28px rgba(245, 158, 11, 0.35),
-              0 0 0 1px rgba(251, 191, 36, 0.25) inset;
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.52), rgba(251, 191, 36, 0.16));
+  border-color: rgba(180, 83, 9, 0.55);
+  box-shadow: 0 8px 28px rgba(245, 158, 11, 0.40),
+              0 0 0 1px rgba(245, 158, 11, 0.30) inset;
 }
 .cell.flame .cell-badge { font-size: 12px; top: 2px; right: 2px;
-  filter: drop-shadow(0 0 6px rgba(251, 191, 36, .8)); }
-.cell.flame .cell-price { color: var(--warn-2); }
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, .8)); }
+.cell.flame .cell-price { color: #8A3E07; }
 
 /* Now ring */
 .cell.now {
