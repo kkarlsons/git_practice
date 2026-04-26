@@ -427,7 +427,8 @@
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const n = rows.length;
     const chartW = W - pad*2, chartH = H - pad*2;
-    const yMin = Math.min(lo, 0), yMax = hi + (hi - yMin) * 0.1;
+    const yMin = Math.min(lo, 0);
+    const yMax = Math.max(hi + (hi - yMin) * 0.1, 5);
     const x = i => pad + (n <= 1 ? chartW/2 : (i * chartW) / (n - 1));
     const y = v => pad + chartH - ((v - yMin) / (yMax - yMin || 1)) * chartH;
 
@@ -476,9 +477,11 @@
     const gap = 1;
     const barW = Math.max(1.8, (chartW - gap * (n - 1)) / n);
 
-    // Always start bars from 0 so magnitude reads clearly.
+    // Always start bars from 0 so magnitude reads clearly. Y-axis ceiling
+    // is at least 5¢ so a flat 0.01 vs 0.03 day doesn't look like a
+    // dramatic spike — only scale beyond 5¢ when the actual high requires it.
     const yMin = 0;
-    const yMax = Math.max(hi * 1.15, 0.01);
+    const yMax = Math.max(hi * 1.15, 5);
     const y = v => padT + chartH - ((Math.max(0, v) - yMin) / (yMax - yMin)) * chartH;
 
     const css = getComputedStyle(document.documentElement);
