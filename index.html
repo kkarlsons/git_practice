@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riga Center Parking & Walk-Distance Heatmap</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="panel">
+    <h1>Riga center parking</h1>
+    <p class="sub">
+      Parking lots from OpenStreetMap. Heatmap: approximate walking distance
+      from every 5&times;5&nbsp;m square to the nearest parking lot
+      (straight-line &times;&nbsp;1.3).
+    </p>
+
+    <div class="controls">
+      <label>
+        <input type="checkbox" id="showHeatmap" checked />
+        Show heatmap
+      </label>
+      <label>
+        <input type="checkbox" id="showParking" checked />
+        Show parking lots
+      </label>
+      <label>
+        Opacity
+        <input type="range" id="opacity" min="0" max="100" value="65" />
+      </label>
+      <button id="recompute">Recompute</button>
+    </div>
+
+    <div id="status">Loading parking data&hellip;</div>
+
+    <div class="legend">
+      <div class="legend-title">Walk to nearest parking</div>
+      <div class="legend-bar"></div>
+      <div class="legend-labels">
+        <span>0&nbsp;m</span>
+        <span>100</span>
+        <span>200</span>
+        <span>300</span>
+        <span>400+</span>
+      </div>
+    </div>
+
+    <details>
+      <summary>About</summary>
+      <p>
+        Parking polygons/nodes are fetched live from the Overpass API
+        (<code>amenity=parking</code>) within the Riga&nbsp;center bounding
+        box. For each parking feature the centroid is used as its access
+        point.
+      </p>
+      <p>
+        The grid is 5&nbsp;m square cells covering ~2&nbsp;&times;&nbsp;2&nbsp;km
+        around Doma&nbsp;laukums. For each cell we compute the Haversine
+        distance to the closest parking centroid and multiply by 1.3 to
+        approximate street-walking detour; this is rendered as a coloured
+        canvas overlay.
+      </p>
+    </details>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="app.js"></script>
+</body>
+</html>
