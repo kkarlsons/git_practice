@@ -1,0 +1,4 @@
+# btcbot runs on the Python standard library alone.
+# The only optional dependency is `requests`, used for live market data.
+# Everything else (indicators, strategy, backtest, synthetic data) is pure stdlib.
+requests>=2.25
