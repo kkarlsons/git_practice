@@ -14,29 +14,41 @@ money, instead of taking anyone's word for it.
 
 ## Features
 
-- **Pure-Python indicators** (no pandas/numpy): SMA, EMA, RSI, MACD,
-  Bollinger Bands, ATR.
-- **Transparent signal engine** — a weighted ensemble of trend, momentum, and
-  mean-reversion signals. Every recommendation shows the contribution of each
-  component.
-- **Backtester** that compares the strategy against buy-and-hold, with fees,
-  drawdown, and trade count.
+- **17 pure-Python indicators** (no pandas/numpy): SMA, EMA, WMA, HMA, RSI,
+  Stochastic RSI, MACD, Bollinger Bands, ATR, Stochastic, Williams %R, CCI, ROC,
+  Momentum, OBV, MFI, ADX/+DI/-DI, Donchian, Keltner, Parabolic SAR, VWAP.
+- **18 pluggable strategies** spanning trend-following, momentum, oscillators,
+  and volatility — plus a **consensus** meta-strategy that polls every other
+  strategy and votes, and a hand-weighted **ensemble**. Every recommendation
+  shows exactly which signals drove it.
+- **Backtester** that compares any strategy against buy-and-hold (fees,
+  drawdown, trade count), plus a **`compare`** command that ranks all strategies.
+- **Paper trading** (simulated money, zero real-world risk): replay history or
+  poll a live exchange, with a saveable trade journal.
 - **Three data sources**: live exchange data (Binance public API), a local CSV
   file, or a built-in deterministic synthetic generator for offline demos/tests.
 - **Zero required dependencies** — `requests` is only needed for live data.
+
+> **Risk posture:** this bot **does not place real-money orders.** It generates
+> signals and trades a *paper* portfolio only. Wiring it to a real exchange for
+> live execution is intentionally left out.
 
 ## Quick start
 
 ```bash
 # No install needed for the demo (uses built-in synthetic data):
-python main.py signal
+python main.py signal                      # latest recommendation (consensus of all strategies)
+python main.py strategies                  # list all 18 strategies
+python main.py compare                      # backtest & rank every strategy vs buy-and-hold
+python main.py backtest --strategy macd     # backtest a single strategy
+python main.py history --rows 40 --signals-only   # recent bar-by-bar signals
 
-# Backtest the strategy vs buy-and-hold:
-python main.py backtest
-
-# Recent bar-by-bar signals (hide HOLDs):
-python main.py history --rows 40 --signals-only
+# Paper trading (simulated money, no real risk):
+python main.py --strategy ema_cross paper --state journal.json   # replay history
+python main.py paper --live --interval 1h --poll 3600            # poll a live exchange
 ```
+
+Pick any strategy with `--strategy NAME` on any command (default: `consensus`).
 
 ### Using real Bitcoin data
 
@@ -74,34 +86,50 @@ python main.py --csv my_btc_data.csv signal
     ↓ Bollinger          Price is riding the upper Bollinger band (stretched up)
 ```
 
-## How the strategy works
+## How signals work
 
-Each bar, five components each cast a vote in `[-1, +1]`:
+Every strategy turns indicator readings into weighted votes in `[-1, +1]`
+(bearish..bullish). Votes are normalized into a score: above `+0.25` → **BUY**,
+below `-0.25` → **SELL**, otherwise **HOLD**. Each strategy reports its reasoning
+so nothing is a black box.
 
-| Component        | Idea                                            | Type            |
-|------------------|-------------------------------------------------|-----------------|
-| Trend (SMA-50)   | Price above/below the long mean                 | Trend-following |
-| EMA cross 12/26  | Fast EMA above/below slow EMA                    | Trend-following |
-| MACD histogram   | Momentum rising/falling                          | Momentum        |
-| RSI-14           | Oversold → bullish, overbought → bearish         | Mean-reversion  |
-| Bollinger Bands  | Stretched to the lower/upper band                | Mean-reversion  |
+The strategies, by family:
 
-Votes are weighted and normalized into a score in `[-1, +1]`. Above
-`+0.25` → **BUY**, below `-0.25` → **SELL**, otherwise **HOLD**. Tune the
-thresholds, weights, and indicator periods in
-[`btcbot/strategy.py`](btcbot/strategy.py) (`StrategyConfig`).
+| Family            | Strategies                                                        |
+|-------------------|-------------------------------------------------------------------|
+| Trend-following   | `trend_filter`, `ma_crossover`, `ema_cross`, `adx_trend`, `psar`  |
+| Momentum          | `macd`, `roc`                                                     |
+| Oscillators       | `rsi_reversion`, `stochastic`, `stoch_rsi`, `williams_r`, `cci`, `mfi` |
+| Volatility/channel| `bollinger`, `keltner`, `donchian`                                |
+| **Meta**          | `ensemble` (weighted blend), `consensus` (vote across all)        |
+
+The **consensus** strategy (default) polls all 16 single-method strategies and
+acts on the aggregate, reporting how many lean bullish vs bearish — broad
+agreement across independent methods is a stronger tell than any one indicator.
+Tune periods/thresholds via `StrategyConfig` in
+[`btcbot/strategies/base.py`](btcbot/strategies/base.py).
 
 ## Project layout
 
 ```
 btcbot/
-  indicators.py   # pure-Python TA indicators
-  data.py         # live / CSV / synthetic data sources
-  strategy.py     # weighted-ensemble signal engine
-  backtest.py     # long/flat backtester with fees
-  cli.py          # command-line interface
-main.py           # entry point
-tests/            # unit tests (no external deps)
+  indicators.py        # 17 pure-Python TA indicators
+  data.py              # live / CSV / synthetic data sources
+  features.py          # lazy, cached indicator computation shared by strategies
+  strategies/
+    base.py            # Strategy base class + Signal/Reason types
+    trend.py           # trend-following strategies
+    momentum.py        # momentum & oscillator strategies
+    volatility.py      # channel/volatility strategies
+    ensemble.py        # hand-weighted blend
+    consensus.py       # vote-across-all meta-strategy
+    __init__.py        # strategy registry (build / available / compare)
+  backtest.py          # long/flat backtester + multi-strategy comparison
+  paper.py             # paper-trading engine (replay + live poll)
+  strategy.py          # backward-compatible shim
+  cli.py               # command-line interface
+main.py                # entry point
+tests/                 # 24 unit tests (no external deps)
 ```
 
 ## Running the tests
@@ -109,15 +137,16 @@ tests/            # unit tests (no external deps)
 ```bash
 python tests/test_indicators.py
 python tests/test_strategy.py
+python tests/test_extended.py
 # or, if you have pytest:
 python -m pytest -q
 ```
 
 ## Roadmap ideas
 
-- Position sizing / stop-loss via ATR.
-- Paper-trading loop that polls live prices and logs signals over time.
-- Additional indicators (Stochastic, OBV) and walk-forward optimization.
+- Position sizing / stop-loss & take-profit via ATR.
+- Walk-forward / out-of-sample optimization of strategy parameters.
+- Risk metrics: Sharpe, Sortino, win rate, profit factor.
 - Optional alerting (email/Telegram) when a new signal fires.
 
 ## Disclaimer
