@@ -1,12 +1,19 @@
 (() => {
   const CSV_URL = 'https://nordpool.didnt.work/nordpool-lv.csv';
-  const SOURCES = [
-    { name: 'direct',     url: CSV_URL },
-    { name: 'corsproxy',  url: `https://corsproxy.io/?${encodeURIComponent(CSV_URL)}` },
-    { name: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}` },
-    { name: 'codetabs',   url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(CSV_URL)}` },
-    { name: 'thingproxy', url: `https://thingproxy.freeboard.io/fetch/${CSV_URL}` },
-  ];
+  /** Build a fresh source list each fetch with a cache-buster so the
+   *  upstream CSV server and the CORS proxies can't hand back a stale
+   *  response from a previous request. */
+  function buildSources() {
+    const t = Date.now();
+    const bustedCsv = `${CSV_URL}?_t=${t}`;
+    return [
+      { name: 'direct',     url: bustedCsv },
+      { name: 'corsproxy',  url: `https://corsproxy.io/?${encodeURIComponent(bustedCsv)}` },
+      { name: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(bustedCsv)}&_t=${t}` },
+      { name: 'codetabs',   url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(bustedCsv)}` },
+      { name: 'thingproxy', url: `https://thingproxy.freeboard.io/fetch/${bustedCsv}` },
+    ];
+  }
   const TZ = 'Europe/Riga';
   const PER_SOURCE_TIMEOUT_MS = 8000;
 
@@ -54,9 +61,10 @@
 
   async function fetchCSV() {
     state.diag = [];
-    for (let i = 0; i < SOURCES.length; i++) {
-      const src = SOURCES[i];
-      setLoadingMsg(`Trying ${src.name}… (${i+1}/${SOURCES.length})`);
+    const sources = buildSources();
+    for (let i = 0; i < sources.length; i++) {
+      const src = sources[i];
+      setLoadingMsg(`Trying ${src.name}… (${i+1}/${sources.length})`);
       const entry = await tryFetch(src);
       state.diag.push(entry);
       if (entry.ok) return entry.text;
@@ -779,17 +787,18 @@
     } catch {}
   }
 
-  // Only refetch when the cache can't answer — saves the feed a lot of hits.
+  // Refetch when the cache can't answer or it's older than 30 min so the
+  // app stays roughly in sync with any upstream correction.
   function shouldRefresh(cache) {
     if (!cache) return true;
     const ageMs = Date.now() - cache.fetchedAt;
-    if (ageMs > 8 * 60 * 60 * 1000) return true;
+    if (ageMs > 30 * 60 * 1000) return true;
     const { today, tomorrow } = bucket(cache.rows);
     if (today.length === 0) return true;
     if (tomorrow.length === 0) {
       const rigaHour = Number(new Intl.DateTimeFormat('en-GB',
         { timeZone: TZ, hour: '2-digit', hour12: false }).format(new Date()));
-      if (rigaHour >= 14 && ageMs > 15 * 60 * 1000) return true;
+      if (rigaHour >= 14 && ageMs > 10 * 60 * 1000) return true;
     }
     return false;
   }
