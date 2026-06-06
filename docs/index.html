@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F1F5E8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EngyCell">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=17">
+  <title>EngyCell Prices · Latvia electricity</title>
+</head>
+<body class="app-entering">
+  <div class="bg">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <svg class="wires" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+        <path class="wire-track" pathLength="1000" d="M -40 140 H 180 V 220 H 400 V 160 H 640 V 260 H 880 V 180 H 1140 V 280 H 1480"/>
+        <path class="wire-pulse" pathLength="1000" d="M -40 140 H 180 V 220 H 400 V 160 H 640 V 260 H 880 V 180 H 1140 V 280 H 1480" style="--dur:11s;--delay:0s;"/>
+
+        <path class="wire-track" pathLength="1000" d="M -40 360 H 140 V 300 H 380 V 420 H 620 V 340 H 900 V 440 H 1160 V 380 H 1480"/>
+        <path class="wire-pulse" pathLength="1000" d="M -40 360 H 140 V 300 H 380 V 420 H 620 V 340 H 900 V 440 H 1160 V 380 H 1480" style="--dur:14s;--delay:-5s;"/>
+
+        <path class="wire-track" pathLength="1000" d="M -40 560 H 220 V 480 H 460 V 620 H 720 V 520 H 980 V 640 H 1240 V 560 H 1480"/>
+        <path class="wire-pulse" pathLength="1000" d="M -40 560 H 220 V 480 H 460 V 620 H 720 V 520 H 980 V 640 H 1240 V 560 H 1480" style="--dur:9s;--delay:-3s;"/>
+
+        <path class="wire-track" pathLength="1000" d="M -40 760 H 280 V 820 H 520 V 680 H 800 V 820 H 1060 V 720 H 1320 V 820 H 1480"/>
+        <path class="wire-pulse" pathLength="1000" d="M -40 760 H 280 V 820 H 520 V 680 H 800 V 820 H 1060 V 720 H 1320 V 820 H 1480" style="--dur:13s;--delay:-7s;"/>
+
+        <path class="wire-track" pathLength="1000" d="M 60 -40 V 140"/>
+        <path class="wire-track" pathLength="1000" d="M 880 180 V 440"/>
+        <path class="wire-track" pathLength="1000" d="M 460 620 V 940"/>
+        <path class="wire-track" pathLength="1000" d="M 1160 380 V 940"/>
+      </g>
+    </svg>
+    <div class="grain"></div>
+  </div>
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo-mark" aria-hidden="true">
+        <!-- engycell-inspired mark: lightning bolt + turbine blade -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <!-- turbine / blade element (left) -->
+          <path d="M4.5 6.2 L11.2 2.2 L13.3 8.8 L6.6 12.8 Z" fill="#071C23"/>
+          <!-- bolt element (right, offset) -->
+          <path d="M14 6 L19 2.4 L18 11.4 L13 15 Z" fill="#071C23"/>
+          <!-- small accent triangle (tail) -->
+          <path d="M11.6 14 L15 15.8 L10.5 19.6 Z" fill="#071C23"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1><span class="brand-accent">engy</span>cell · Prices</h1>
+        <p class="subtitle">Latvia · 15-minute electricity</p>
+      </div>
+    </div>
+    <button id="refresh" class="icon-btn" aria-label="Refresh">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </header>
+
+  <div class="segmented" role="tablist">
+    <div class="seg-thumb" id="seg-thumb"></div>
+    <button class="seg active" data-day="today" role="tab" aria-selected="true">Today</button>
+    <button class="seg" data-day="tomorrow" role="tab" aria-selected="false">Tomorrow</button>
+  </div>
+
+  <main id="app">
+    <div id="loading" class="state">
+      <div class="spinner"></div>
+      <p class="state-title">Loading prices</p>
+      <p id="loading-msg" class="state-sub"></p>
+    </div>
+
+    <div id="error" class="state hidden">
+      <div class="state-icon">!</div>
+      <p class="state-title">Couldn't load prices</p>
+      <p id="error-msg" class="state-sub"></p>
+      <button id="retry" class="btn">Try again</button>
+      <div id="diag" class="diag"></div>
+    </div>
+
+    <div id="content" class="hidden fade-in">
+      <section class="hero">
+        <div class="hero-top">
+          <span class="pill" id="hero-pill">—</span>
+          <span class="hero-label" id="hero-label">Right now</span>
+        </div>
+        <div class="hero-num">
+          <span class="hero-value" id="hero-value">—</span>
+          <span class="hero-unit">¢/kWh</span>
+        </div>
+        <div class="hero-meta">
+          <span id="hero-sub" class="hero-time">—</span>
+          <span id="hero-delta" class="hero-delta"></span>
+        </div>
+        <svg id="hero-spark" class="hero-spark" viewBox="0 0 340 60" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </section>
+
+      <section id="insight" class="insight hidden">
+        <div class="insight-icon" id="insight-icon">🌿</div>
+        <div class="insight-text">
+          <div class="insight-title" id="insight-title"></div>
+          <div class="insight-sub" id="insight-sub"></div>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="stat lo">
+          <div class="stat-head"><span class="stat-dot"></span> Cheapest</div>
+          <div class="stat-value" id="stat-lo">—</div>
+          <div class="stat-sub" id="stat-lo-sub"></div>
+        </div>
+        <div class="stat hi">
+          <div class="stat-head"><span class="stat-dot"></span> Priciest</div>
+          <div class="stat-value" id="stat-hi">—</div>
+          <div class="stat-sub" id="stat-hi-sub"></div>
+        </div>
+      </section>
+
+      <section class="card chart-card">
+        <div class="card-head">
+          <h3>15-minute bars</h3>
+          <div class="legend">
+            <span>👑 cheapest</span>
+            <span>🔥 priciest</span>
+          </div>
+        </div>
+        <svg id="chart" viewBox="0 0 640 280" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Price chart"></svg>
+      </section>
+
+      <section class="card list-card">
+        <div class="card-head">
+          <h3>Every 15-minute slot</h3>
+          <span class="count" id="slot-count"></span>
+        </div>
+        <div id="list" class="list"></div>
+      </section>
+
+      <p class="updated" id="updated"></p>
+    </div>
+  </main>
+  <script src="app.js?v=20" defer></script>
+</body>
+</html>
