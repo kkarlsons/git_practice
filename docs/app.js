@@ -6,16 +6,21 @@
   function buildSources() {
     const t = Date.now();
     const bustedCsv = `${CSV_URL}?_t=${t}`;
+    const enc = encodeURIComponent(bustedCsv);
     return [
+      // Direct first (works if the origin sends CORS headers).
       { name: 'direct',     url: bustedCsv },
-      { name: 'corsproxy',  url: `https://corsproxy.io/?${encodeURIComponent(bustedCsv)}` },
-      { name: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(bustedCsv)}&_t=${t}` },
-      { name: 'codetabs',   url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(bustedCsv)}` },
+      // corsproxy.io's current documented form uses ?url=
+      { name: 'corsproxy',  url: `https://corsproxy.io/?url=${enc}` },
+      { name: 'corsh',      url: `https://proxy.corsfix.com/?${enc}` },
+      { name: 'cors.eu',    url: `https://cors.eu.org/${bustedCsv}` },
+      { name: 'allorigins', url: `https://api.allorigins.win/raw?url=${enc}` },
+      { name: 'codetabs',   url: `https://api.codetabs.com/v1/proxy/?quest=${enc}` },
       { name: 'thingproxy', url: `https://thingproxy.freeboard.io/fetch/${bustedCsv}` },
     ];
   }
   const TZ = 'Europe/Riga';
-  const PER_SOURCE_TIMEOUT_MS = 8000;
+  const PER_SOURCE_TIMEOUT_MS = 12000;
 
   const $ = id => document.getElementById(id);
   const state = { selected: 'today', today: [], tomorrow: [], updatedAt: null, diag: [] };
